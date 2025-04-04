@@ -31,4 +31,4 @@ TempoLog is a web-based time management tool designed to transform task tracking
 - Optional integration with external APIs (such as weather data) for additional context
 
 ## Expected Outcome
-Upon completion, users will be able to view an intuitive visual summary of their daily rhythm, combining productivity insights and emotional reflections. This visual representation will help users recognize productivity patterns, enhance self
+Upon completion, users will be able to view an intuitive visual summary of their daily rhythm, combining productivity insights and emotional reflections. This visual representation will help users recognize productivity patterns, enhance productivity and understand their own patterns over time.
