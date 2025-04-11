@@ -37,22 +37,22 @@ TempoLog is a lightweight, web-based time and emotion management tool built with
 
 ## Project Timeline
 
-| Week | Milestone                             |
-|------|----------------------------------------|
-| 3    | Set up Streamlit UI and Git repository |
-| 4    | Implement task input and timer backend |
-| 5    | Connect and test SQLite storage        |
-| 6    | Develop visualization features         |
-| 7    | Polish UI and optional API integration |
-| 8    | Final testing and documentation        |
+| Week | Milestone                             | What is Expected                                     | What is Delivered               |
+|------|----------------------------------------|------------------------------------------------------|----------------------------------|
+| 3    | Set up Streamlit UI and Git repository | Basic interface skeleton and GitHub project created  | ✅ GitHub repo & UI started      |
+| 4    | Implement task input and timer backend | Functional input form and timer logic in place       | 🔄 Timer partially working       |
+| 5    | Connect and test SQLite storage        | Tasks saved with timestamps and moods in database    | ⏳ 开发中                        |
+| 6    | Develop visualization features         | Tempo spectrum renders from stored data              | ⏳ 待开始                        |
+| 7    | Polish UI and optional API integration | Improved styling and optional API functionality      | ⏳ 待开始                        |
+| 8    | Final testing and documentation        | Bug fixing, performance test, README & user guide    | ⏳ 待开始                        |
 
 ## Technical Stack
 
-| Layer       | Technology         |
-|-------------|--------------------|
-| Frontend    | Streamlit (Python) |
-| Backend     | Python             |
-| Database    | SQLite             |
+| Layer         | Technology         |
+|---------------|--------------------|
+| Frontend      | Streamlit (Python) |
+| Backend       | Python             |
+| Database      | SQLite             |
 | Visualization | matplotlib or plotly |
 
 ## Challenges
@@ -69,4 +69,3 @@ TempoLog is a lightweight, web-based time and emotion management tool built with
 |-------------|-----------|------------------------------------------|---------------------|
 | Junxian Yu  | Developer | https://github.com/yujunxian             | yujux1998@gmail.com |
 | Siyang Shen | Client    | https://github.com/kumamonlove           | andyshen@uw.edu     |
-
