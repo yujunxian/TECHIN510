@@ -69,3 +69,26 @@ TempoLog is a lightweight, web-based time and emotion management tool built with
 |-------------|-----------|------------------------------------------|---------------------|
 | Junxian Yu  | Developer | https://github.com/yujunxian             | yujux1998@gmail.com |
 | Siyang Shen | Client    | https://github.com/kumamonlove           | andyshen@uw.edu     |
+
+##  Project Roadmap
+The TempoLog project will follow a phased development roadmap:
+
+###  Phase 1 – Core Functionality (Weeks 3–5)
+- [x] Set up Git repository and Streamlit app structure
+- [x] Build basic task input interface and timer
+- [ ] Implement SQLite database for storing tasks
+- [ ] Record actual time, expected time, and mood per task
+
+###  Phase 2 – Visualization & Feedback (Weeks 6–7)
+- [ ] Design and render tempo spectrum (based on mood and efficiency)
+- [ ] Add performance rating (High, Normal, Low)
+- [ ] Style UI for clarity and emotional friendliness
+
+###  Phase 3 – Extensions & Finalization (Weeks 7–8)
+- [ ] Explore API-based mood-based music suggestions (optional)
+- [ ] Perform full usability testing
+- [ ] Finalize README and developer/client documentation
+
+>  Core features are prioritized to ensure a functional, single-user productivity tracker.  
+>  Optional features will be added based on available time and technical feasibility.
+
