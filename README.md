@@ -103,12 +103,12 @@ The TempoLog project will follow a phased development roadmap:
 - Display top 3–5 suggestions with title, artist, preview link
 - Optional: allow refresh for new suggestions
 
-### Phase 4 – UI Polish and Feedback (Week 7)
+### Phase 4 – UI Polish and Feedback (Week 8)
 - Style UI and refine visual design
 - Add tooltip, labels, or mood icons
 - Add optional background audio for ambient feedback
 
-### Phase 5 – Testing and Documentation (Week 8)
+### Phase 5 – Testing and Documentation (Week 9)
 - Conduct usability testing and debug edge cases
 - Finalize README and user documentation
 - Prepare for class demo or final presentation
