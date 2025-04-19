@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Music Recommender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .spotify-embed {
+            width: 100%;
+            height: 80px;
+            border-radius: 12px;
+            margin-top: 1rem;
+        }
+        .time-block {
+            transition: all 0.3s ease;
+        }
+        .time-block:hover {
+            transform: scale(1.02);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h1 class="text-3xl font-bold text-center mb-8">Spotify Music Recommender</h1>
+            
+            <!-- Time Management Section -->
+            <div class="mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Time Management</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Pomodoro Timer -->
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <h3 class="text-xl font-semibold mb-4">Pomodoro Timer</h3>
+                        <div class="text-center mb-4">
+                            <div id="timer" class="text-4xl font-bold mb-4">25:00</div>
+                            <div class="flex justify-center gap-2">
+                                <button id="startTimer" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">Start</button>
+                                <button id="pauseTimer" class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600">Pause</button>
+                                <button id="resetTimer" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">Reset</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Task List -->
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <h3 class="text-xl font-semibold mb-4">Task List</h3>
+                        <form id="taskForm" class="mb-4">
+                            <div class="flex gap-2">
+                                <input type="text" id="taskInput" class="flex-1 p-2 border rounded-lg" placeholder="Add a new task" required>
+                                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Add</button>
+                            </div>
+                        </form>
+                        <div id="taskList" class="space-y-2">
+                            <!-- Tasks will be added here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recommended Songs -->
+            <div class="mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Recommended Songs</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="recommendations">
+                    {% if recommendations %}
+                        {% for rec in recommendations %}
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <h3 class="font-semibold">{{ rec.song }}</h3>
+                            <p class="text-gray-600">{{ rec.artist }}</p>
+                            <p class="text-sm text-gray-500 mt-2">{{ rec.explanation }}</p>
+                            {% if rec.spotify_id %}
+                            <iframe class="spotify-embed" 
+                                src="https://open.spotify.com/embed/track/{{ rec.spotify_id }}"
+                                frameborder="0" 
+                                allowtransparency="true" 
+                                allow="encrypted-media">
+                            </iframe>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="col-span-full text-center text-gray-500">
+                            Loading recommendations...
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Recently Played Songs -->
+            <div class="mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Recently Played</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="recentTracks">
+                    {% for track in tracks %}
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <img src="{{ track.album.images[0].url }}" alt="{{ track.album.name }}" class="w-full h-48 object-cover rounded-lg mb-4">
+                        <h3 class="font-semibold">{{ track.name }}</h3>
+                        <p class="text-gray-600">{{ track.artists[0].name }}</p>
+                        <p class="text-sm text-gray-500 mt-2">{{ track.album.name }}</p>
+                        <iframe class="spotify-embed" 
+                            src="https://open.spotify.com/embed/track/{{ track.id }}"
+                            frameborder="0" 
+                            allowtransparency="true" 
+                            allow="encrypted-media">
+                        </iframe>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Create Playlist Button -->
+            <div class="text-center">
+                <button id="createPlaylist" class="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600">
+                    Create Recommended Playlist
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Pomodoro Timer
+        let timerInterval;
+        let timeLeft = 25 * 60; // 25 minutes in seconds
+        let isRunning = false;
+
+        function updateTimer() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById('timer').textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function startTimer() {
+            if (!isRunning) {
+                isRunning = true;
+                timerInterval = setInterval(() => {
+                    if (timeLeft > 0) {
+                        timeLeft--;
+                        updateTimer();
+                    } else {
+                        clearInterval(timerInterval);
+                        isRunning = false;
+                        alert('Time is up! Take a break!');
+                    }
+                }, 1000);
+            }
+        }
+
+        function pauseTimer() {
+            if (isRunning) {
+                clearInterval(timerInterval);
+                isRunning = false;
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            timeLeft = 25 * 60;
+            updateTimer();
+        }
+
+        document.getElementById('startTimer').addEventListener('click', startTimer);
+        document.getElementById('pauseTimer').addEventListener('click', pauseTimer);
+        document.getElementById('resetTimer').addEventListener('click', resetTimer);
+
+        // Task List
+        function addTask(taskText) {
+            const taskList = document.getElementById('taskList');
+            const taskId = Date.now().toString();
+            
+            const taskElement = document.createElement('div');
+            taskElement.className = 'flex items-center justify-between bg-gray-50 p-2 rounded-lg';
+            taskElement.innerHTML = `
+                <div class="flex items-center">
+                    <input type="checkbox" class="mr-2" onchange="toggleTask('${taskId}')">
+                    <span>${taskText}</span>
+                </div>
+                <button class="text-red-500 hover:text-red-600" onclick="deleteTask('${taskId}')">
+                    Delete
+                </button>
+            `;
+            
+            taskList.appendChild(taskElement);
+            saveTasks();
+        }
+
+        function toggleTask(taskId) {
+            const task = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (task) {
+                task.classList.toggle('line-through');
+                saveTasks();
+            }
+        }
+
+        function deleteTask(taskId) {
+            const task = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (task) {
+                task.remove();
+                saveTasks();
+            }
+        }
+
+        function saveTasks() {
+            const tasks = [];
+            document.querySelectorAll('#taskList div').forEach(task => {
+                tasks.push({
+                    id: task.dataset.taskId,
+                    text: task.querySelector('span').textContent,
+                    completed: task.classList.contains('line-through')
+                });
+            });
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
+        function loadTasks() {
+            const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+            tasks.forEach(task => {
+                addTask(task.text);
+                if (task.completed) {
+                    const taskElement = document.querySelector(`[data-task-id="${task.id}"]`);
+                    if (taskElement) {
+                        taskElement.classList.add('line-through');
+                    }
+                }
+            });
+        }
+
+        document.getElementById('taskForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const taskInput = document.getElementById('taskInput');
+            const taskText = taskInput.value.trim();
+            if (taskText) {
+                addTask(taskText);
+                taskInput.value = '';
+            }
+        });
+
+        // Load tasks on page load
+        loadTasks();
+
+        // Create playlist
+        document.getElementById('createPlaylist').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/create_playlist', {
+                    method: 'POST',
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert('Playlist created successfully!');
+                } else {
+                    alert('Failed to create playlist: ' + data.error);
+                }
+            } catch (error) {
+                alert('An error occurred while creating the playlist');
+            }
+        });
+    </script>
+</body>
+</html> 
