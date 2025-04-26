@@ -1,0 +1,93 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Open Sans', sans-serif;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.timer-container {
+    background-color: #FABB18;
+    border-radius: 121.5px;
+    padding: 40px;
+    width: 90%;
+    max-width: 800px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.timer-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.task-name {
+    font-size: 120px;
+    font-weight: 700;
+    color: #000;
+    text-align: center;
+}
+
+.timer {
+    font-size: 100px;
+    font-weight: 400;
+    color: #000;
+    text-align: center;
+}
+
+.spotify-player {
+    width: 100%;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 20px;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.song-info {
+    flex: 1;
+}
+
+.song-title {
+    font-size: 60px;
+    font-weight: 600;
+    color: #000;
+    margin-bottom: 5px;
+}
+
+.artist-name {
+    font-size: 45px;
+    font-weight: 600;
+    color: #000;
+}
+
+.player-controls {
+    display: flex;
+    gap: 15px;
+}
+
+.control-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+    transition: transform 0.2s;
+}
+
+.control-btn:hover {
+    transform: scale(1.1);
+}
+
+.control-btn svg {
+    width: 40px;
+    height: 40px;
+} 

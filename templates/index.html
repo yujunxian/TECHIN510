@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spotify Music Recommender</title>
+    <title>Focus Timer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .spotify-embed {
@@ -18,170 +18,197 @@
         .time-block:hover {
             transform: scale(1.02);
         }
+        .gradient-bg {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="gradient-bg min-h-screen text-white">
     <div class="container mx-auto px-4 py-8">
-        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
-            <h1 class="text-3xl font-bold text-center mb-8">Spotify Music Recommender</h1>
+        <div class="bg-black bg-opacity-30 rounded-2xl shadow-lg p-8 mb-8 backdrop-blur-sm">
+            <h1 class="text-4xl font-bold text-center mb-12">TempoLog</h1>
+            
+            <!-- Rhythm Analysis -->
+            <div class="bg-black bg-opacity-40 p-6 rounded-xl shadow-lg backdrop-blur-sm mb-8">
+                <h3 class="text-2xl font-semibold mb-4">Today's Rhythm</h3>
+                <p id="rhythmAnalysis" class="text-gray-300">Loading rhythm analysis...</p>
+            </div>
             
             <!-- Time Management Section -->
-            <div class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4">Time Management</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- Pomodoro Timer -->
-                    <div class="bg-white p-4 rounded-lg shadow">
-                        <h3 class="text-xl font-semibold mb-4">Pomodoro Timer</h3>
-                        <div class="text-center mb-4">
-                            <div id="timer" class="text-4xl font-bold mb-4">25:00</div>
-                            <div class="flex justify-center gap-2">
-                                <button id="startTimer" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">Start</button>
-                                <button id="pauseTimer" class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600">Pause</button>
-                                <button id="resetTimer" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">Reset</button>
+            <div class="mb-12">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Task List -->
+                    <div class="bg-black bg-opacity-40 p-6 rounded-xl shadow-lg backdrop-blur-sm">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-2xl font-semibold">Task List</h3>
+                            <div class="flex gap-2">
+                                <button class="time-range-btn bg-white bg-opacity-10 hover:bg-opacity-20 px-4 py-2 rounded-lg" data-range="day">Today</button>
+                                <button class="time-range-btn bg-white bg-opacity-10 hover:bg-opacity-20 px-4 py-2 rounded-lg" data-range="week">Week</button>
+                                <button class="time-range-btn bg-white bg-opacity-10 hover:bg-opacity-20 px-4 py-2 rounded-lg" data-range="month">Month</button>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Task List -->
-                    <div class="bg-white p-4 rounded-lg shadow">
-                        <h3 class="text-xl font-semibold mb-4">Task List</h3>
-                        <form id="taskForm" class="mb-4">
-                            <div class="flex gap-2">
-                                <input type="text" id="taskInput" class="flex-1 p-2 border rounded-lg" placeholder="Add a new task" required>
-                                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">Add</button>
+                        <form id="taskForm" class="mb-6">
+                            <div class="flex gap-3">
+                                <input type="text" id="taskInput" class="flex-1 p-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:border-opacity-50" placeholder="Add a new task" required>
+                                <button type="submit" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">Add</button>
                             </div>
                         </form>
-                        <div id="taskList" class="space-y-2">
+                        <div id="taskList" class="space-y-3">
                             <!-- Tasks will be added here -->
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Recommended Songs -->
-            <div class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4">Recommended Songs</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="recommendations">
-                    {% if recommendations %}
-                        {% for rec in recommendations %}
-                        <div class="bg-white p-4 rounded-lg shadow">
-                            <h3 class="font-semibold">{{ rec.song }}</h3>
-                            <p class="text-gray-600">{{ rec.artist }}</p>
-                            <p class="text-sm text-gray-500 mt-2">{{ rec.explanation }}</p>
-                            {% if rec.spotify_id %}
-                            <iframe class="spotify-embed" 
-                                src="https://open.spotify.com/embed/track/{{ rec.spotify_id }}"
-                                frameborder="0" 
-                                allowtransparency="true" 
-                                allow="encrypted-media">
-                            </iframe>
+                    <!-- Recommended Songs -->
+                    <div class="bg-black bg-opacity-40 p-6 rounded-xl shadow-lg backdrop-blur-sm">
+                        <h3 class="text-2xl font-semibold mb-6">Recommended Songs</h3>
+                        <div class="grid grid-cols-1 gap-4" id="recommendations">
+                            {% if recommendations %}
+                                {% for rec in recommendations %}
+                                <div class="bg-white bg-opacity-5 p-4 rounded-lg hover:bg-opacity-10 transition-colors">
+                                    <div class="flex justify-between items-center">
+                                        <div>
+                                            <h3 class="font-semibold">{{ rec.song }}</h3>
+                                            <p class="text-gray-400">{{ rec.artist }}</p>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button class="play-track-btn bg-green-500 hover:bg-green-600 text-white p-2 rounded-full" data-uri="{{ rec.spotify_uri }}">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M8 5v14l11-7z" fill="currentColor"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center text-gray-400">
+                                    Loading recommendations...
+                                </div>
                             {% endif %}
                         </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="col-span-full text-center text-gray-500">
-                            Loading recommendations...
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Recently Played Songs -->
-            <div class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4">Recently Played</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="recentTracks">
-                    {% for track in tracks %}
-                    <div class="bg-white p-4 rounded-lg shadow">
-                        <img src="{{ track.album.images[0].url }}" alt="{{ track.album.name }}" class="w-full h-48 object-cover rounded-lg mb-4">
-                        <h3 class="font-semibold">{{ track.name }}</h3>
-                        <p class="text-gray-600">{{ track.artists[0].name }}</p>
-                        <p class="text-sm text-gray-500 mt-2">{{ track.album.name }}</p>
-                        <iframe class="spotify-embed" 
-                            src="https://open.spotify.com/embed/track/{{ track.id }}"
-                            frameborder="0" 
-                            allowtransparency="true" 
-                            allow="encrypted-media">
-                        </iframe>
                     </div>
-                    {% endfor %}
                 </div>
-            </div>
-
-            <!-- Create Playlist Button -->
-            <div class="text-center">
-                <button id="createPlaylist" class="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600">
-                    Create Recommended Playlist
-                </button>
             </div>
         </div>
     </div>
 
+    <!-- Timer Modal -->
+    <div id="timerModal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-black bg-opacity-80 rounded-3xl p-12 w-[95%] max-w-[1200px] relative backdrop-blur-md">
+            <button id="closeModal" class="absolute top-6 right-6 text-white text-2xl hover:text-gray-300 transition-colors">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <div class="flex flex-col items-center gap-8">
+                <div id="modalTaskName" class="text-[120px] font-bold text-white text-center"></div>
+                <div id="modalTimer" class="text-[100px] font-normal text-white text-center">00:00</div>
+                <div class="w-full bg-white bg-opacity-10 rounded-2xl p-8 flex flex-col gap-6 backdrop-blur-sm">
+                    <div class="w-full h-[352px] rounded-xl overflow-hidden">
+                        <div id="player-container" class="w-full h-full flex flex-col items-center justify-center">
+                            <div id="player-status" class="text-white text-xl mb-4">Loading player...</div>
+                            <div class="song-info text-center mb-6">
+                                <div id="modalSongTitle" class="text-2xl font-bold text-white mb-2">No song playing</div>
+                                <div id="modalArtistName" class="text-lg text-gray-400">No artist</div>
+                            </div>
+                            <div class="w-full max-w-md">
+                                <div class="flex justify-between text-sm text-gray-400 mb-2">
+                                    <span id="current-time">0:00</span>
+                                    <span id="total-time">0:00</span>
+                                </div>
+                                <div class="relative h-2 bg-gray-700 rounded-full">
+                                    <div id="progress-bar" class="absolute h-full bg-green-500 rounded-full" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <div class="player-controls flex justify-center items-center gap-4 mt-4">
+                                <button class="prev-btn bg-white bg-opacity-10 hover:bg-opacity-20 p-2 rounded-full">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 6h2v12H6zm3.5 6l8.5 6V6l-8.5 6z" fill="currentColor"/>
+                                    </svg>
+                                </button>
+                                <button class="play-btn bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-full">
+                                    Play
+                                </button>
+                                <button class="next-btn bg-white bg-opacity-10 hover:bg-opacity-20 p-2 rounded-full">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" fill="currentColor"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spotify Web Playback SDK -->
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
     <script>
-        // Pomodoro Timer
-        let timerInterval;
-        let timeLeft = 25 * 60; // 25 minutes in seconds
-        let isRunning = false;
-
-        function updateTimer() {
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            document.getElementById('timer').textContent = 
-                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        }
-
-        function startTimer() {
-            if (!isRunning) {
-                isRunning = true;
-                timerInterval = setInterval(() => {
-                    if (timeLeft > 0) {
-                        timeLeft--;
-                        updateTimer();
-                    } else {
-                        clearInterval(timerInterval);
-                        isRunning = false;
-                        alert('Time is up! Take a break!');
-                    }
-                }, 1000);
-            }
-        }
-
-        function pauseTimer() {
-            if (isRunning) {
-                clearInterval(timerInterval);
-                isRunning = false;
-            }
-        }
-
-        function resetTimer() {
-            clearInterval(timerInterval);
-            isRunning = false;
-            timeLeft = 25 * 60;
-            updateTimer();
-        }
-
-        document.getElementById('startTimer').addEventListener('click', startTimer);
-        document.getElementById('pauseTimer').addEventListener('click', pauseTimer);
-        document.getElementById('resetTimer').addEventListener('click', resetTimer);
-
         // Task List
+        let currentTimeRange = 'day';
+        let taskTimes = JSON.parse(localStorage.getItem('taskTimes') || '{}');
+
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            return `${hours}h ${minutes}m`;
+        }
+
         function addTask(taskText) {
             const taskList = document.getElementById('taskList');
             const taskId = Date.now().toString();
             
             const taskElement = document.createElement('div');
-            taskElement.className = 'flex items-center justify-between bg-gray-50 p-2 rounded-lg';
+            taskElement.className = 'flex items-center justify-between bg-white bg-opacity-5 p-4 rounded-lg hover:bg-opacity-10 transition-colors';
+            taskElement.dataset.taskId = taskId;
             taskElement.innerHTML = `
                 <div class="flex items-center">
-                    <input type="checkbox" class="mr-2" onchange="toggleTask('${taskId}')">
-                    <span>${taskText}</span>
+                    <input type="checkbox" class="mr-3" onchange="toggleTask('${taskId}')">
+                    <div>
+                        <span class="text-white">${taskText}</span>
+                        <div class="text-sm text-gray-400" id="task-time-${taskId}">0h 0m</div>
+                    </div>
                 </div>
-                <button class="text-red-500 hover:text-red-600" onclick="deleteTask('${taskId}')">
-                    Delete
-                </button>
+                <div class="flex gap-3">
+                    <button class="start-btn text-blue-400 hover:text-blue-300 transition-colors" onclick="startTaskTimer('${taskText}', '${taskId}')">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                    <button class="delete-btn text-red-400 hover:text-red-300 transition-colors opacity-0 group-hover:opacity-100" onclick="deleteTask('${taskId}')">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                </div>
             `;
             
             taskList.appendChild(taskElement);
             saveTasks();
+            updateTaskTime(taskId);
+        }
+
+        function updateTaskTime(taskId) {
+            const timeElement = document.getElementById(`task-time-${taskId}`);
+            if (timeElement) {
+                const task = taskTimes[taskId] || {};
+                const time = task[currentTimeRange] || 0;
+                timeElement.textContent = formatTime(time);
+            }
+        }
+
+        function saveTaskTime(taskId, timeSpent) {
+            if (!taskTimes[taskId]) {
+                taskTimes[taskId] = {};
+            }
+            if (!taskTimes[taskId][currentTimeRange]) {
+                taskTimes[taskId][currentTimeRange] = 0;
+            }
+            taskTimes[taskId][currentTimeRange] += timeSpent;
+            localStorage.setItem('taskTimes', JSON.stringify(taskTimes));
+            updateTaskTime(taskId);
+            updateRhythmAnalysis();
         }
 
         function toggleTask(taskId) {
@@ -196,6 +223,8 @@
             const task = document.querySelector(`[data-task-id="${taskId}"]`);
             if (task) {
                 task.remove();
+                delete taskTimes[taskId];
+                localStorage.setItem('taskTimes', JSON.stringify(taskTimes));
                 saveTasks();
             }
         }
@@ -238,21 +267,375 @@
         // Load tasks on page load
         loadTasks();
 
-        // Create playlist
-        document.getElementById('createPlaylist').addEventListener('click', async () => {
+        // Timer Modal Functions
+        let startTime;
+        let timerInterval;
+        let isRunning = false;
+        let currentTaskId;
+
+        function startTaskTimer(taskName, taskId) {
+            const modal = document.getElementById('timerModal');
+            const taskNameElement = document.getElementById('modalTaskName');
+            const timerElement = document.getElementById('modalTimer');
+            
+            taskNameElement.textContent = taskName;
+            timerElement.textContent = '00:00';
+            currentTaskId = taskId;
+            
+            // 根据任务名称生成背景
+            generateBackground(taskName);
+            
+            modal.classList.remove('hidden');
+            startTimer();
+        }
+
+        async function generateBackground(taskName) {
             try {
-                const response = await fetch('/create_playlist', {
+                const response = await fetch('/generate_background', {
                     method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ task: taskName })
                 });
                 const data = await response.json();
-                if (data.success) {
-                    alert('Playlist created successfully!');
-                } else {
-                    alert('Failed to create playlist: ' + data.error);
+                if (data.background) {
+                    document.getElementById('timerModal').style.backgroundImage = `url(${data.background})`;
                 }
             } catch (error) {
-                alert('An error occurred while creating the playlist');
+                console.error('Error generating background:', error);
             }
+        }
+
+        function startTimer() {
+            if (!isRunning) {
+                startTime = Date.now();
+                isRunning = true;
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
+        function stopTimer() {
+            if (isRunning) {
+                clearInterval(timerInterval);
+                isRunning = false;
+                if (currentTaskId) {
+                    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+                    saveTaskTime(currentTaskId, timeSpent);
+                }
+            }
+        }
+
+        function updateTimer() {
+            const timerElement = document.getElementById('modalTimer');
+            const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+            const minutes = Math.floor(elapsedTime / 60);
+            const seconds = elapsedTime % 60;
+            timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Close modal when clicking outside or close button
+        document.getElementById('timerModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                stopTimer();
+                e.currentTarget.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('closeModal').addEventListener('click', () => {
+            stopTimer();
+            document.getElementById('timerModal').classList.add('hidden');
+        });
+
+        // Spotify Web Playback SDK
+        let player;
+        let deviceId;
+        let isPlayerReady = false;
+        let isPlaying = false;
+        let progressInterval;
+
+        function updatePlayerStatus(message) {
+            const statusElement = document.getElementById('player-status');
+            if (statusElement) {
+                statusElement.textContent = message;
+            }
+        }
+
+        function formatTime(ms) {
+            const minutes = Math.floor(ms / 60000);
+            const seconds = Math.floor((ms % 60000) / 1000);
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function updateProgress(state) {
+            const progressBar = document.getElementById('progress-bar');
+            const currentTime = document.getElementById('current-time');
+            const totalTime = document.getElementById('total-time');
+            
+            if (state) {
+                const progress = (state.position / state.duration) * 100;
+                progressBar.style.width = `${progress}%`;
+                currentTime.textContent = formatTime(state.position);
+                totalTime.textContent = formatTime(state.duration);
+            }
+        }
+
+        function startProgressUpdate() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+            }
+            progressInterval = setInterval(async () => {
+                if (isPlayerReady && isPlaying) {
+                    const state = await player.getCurrentState();
+                    if (state) {
+                        updateProgress(state);
+                    }
+                }
+            }, 100); // 每0.1秒更新一次
+        }
+
+        function stopProgressUpdate() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+        }
+
+        window.onSpotifyWebPlaybackSDKReady = () => {
+            updatePlayerStatus('Initializing player...');
+            
+            // 从后端获取访问令牌
+            fetch('/get_token')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.access_token) {
+                        const token = data.access_token;
+                        
+                        player = new Spotify.Player({
+                            name: 'Focus Timer Player',
+                            getOAuthToken: cb => { cb(token); },
+                            volume: 0.5
+                        });
+
+                        // Ready
+                        player.addListener('ready', ({ device_id }) => {
+                            console.log('Ready with Device ID', device_id);
+                            deviceId = device_id;
+                            isPlayerReady = true;
+                            updatePlayerStatus('Player ready!');
+                            
+                            // 转移播放到当前设备
+                            fetch('/transfer_playback', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ device_id: device_id })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    console.log('Playback transferred successfully');
+                                } else {
+                                    console.error('Failed to transfer playback:', data.error);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error transferring playback:', error);
+                            });
+                        });
+
+                        // Not Ready
+                        player.addListener('not_ready', ({ device_id }) => {
+                            console.log('Device ID has gone offline', device_id);
+                            isPlayerReady = false;
+                            updatePlayerStatus('Player not ready');
+                            stopProgressUpdate();
+                        });
+
+                        // Error handling
+                        player.addListener('initialization_error', ({ message }) => {
+                            console.error('Failed to initialize:', message);
+                            updatePlayerStatus('Error: Failed to initialize player');
+                            stopProgressUpdate();
+                        });
+
+                        player.addListener('authentication_error', ({ message }) => {
+                            console.error('Failed to authenticate:', message);
+                            updatePlayerStatus('Error: Failed to authenticate');
+                            stopProgressUpdate();
+                        });
+
+                        player.addListener('account_error', ({ message }) => {
+                            console.error('Failed to validate Spotify account:', message);
+                            updatePlayerStatus('Error: Failed to validate Spotify account');
+                            stopProgressUpdate();
+                        });
+
+                        player.addListener('playback_error', ({ message }) => {
+                            console.error('Failed to perform playback:', message);
+                            updatePlayerStatus('Error: Failed to perform playback');
+                            stopProgressUpdate();
+                        });
+
+                        // Playback status updates
+                        player.addListener('player_state_changed', state => {
+                            if (state) {
+                                isPlaying = !state.paused;
+                                const track = state.track_window.current_track;
+                                document.getElementById('modalSongTitle').textContent = track.name;
+                                document.getElementById('modalArtistName').textContent = track.artists[0].name;
+                                updatePlayerStatus('Playing: ' + track.name);
+                                
+                                // 更新播放按钮状态
+                                const playBtn = document.querySelector('.play-btn');
+                                if (playBtn) {
+                                    playBtn.textContent = isPlaying ? 'Pause' : 'Play';
+                                }
+
+                                // 更新进度条
+                                updateProgress(state);
+
+                                // 开始或停止进度更新
+                                if (isPlaying) {
+                                    startProgressUpdate();
+                                } else {
+                                    stopProgressUpdate();
+                                }
+                            }
+                        });
+
+                        // Connect to the player
+                        player.connect().then(success => {
+                            if (success) {
+                                updatePlayerStatus('Player connected successfully');
+                            } else {
+                                updatePlayerStatus('Error: Failed to connect player');
+                            }
+                        });
+                    } else {
+                        updatePlayerStatus('Error: Failed to get access token');
+                        console.error('Failed to get access token:', data.error);
+                    }
+                })
+                .catch(error => {
+                    updatePlayerStatus('Error: Failed to get access token');
+                    console.error('Error getting access token:', error);
+                });
+        };
+
+        // 播放控制
+        document.querySelector('.play-btn').addEventListener('click', () => {
+            if (isPlayerReady) {
+                if (isPlaying) {
+                    player.pause();
+                    document.querySelector('.play-btn').textContent = 'Play';
+                    stopProgressUpdate();
+                } else {
+                    player.resume();
+                    document.querySelector('.play-btn').textContent = 'Pause';
+                    startProgressUpdate();
+                }
+            } else {
+                updatePlayerStatus('Error: Player not ready');
+            }
+        });
+
+        document.querySelector('.prev-btn').addEventListener('click', () => {
+            if (isPlayerReady) {
+                player.previousTrack();
+            } else {
+                updatePlayerStatus('Error: Player not ready');
+            }
+        });
+
+        document.querySelector('.next-btn').addEventListener('click', () => {
+            if (isPlayerReady) {
+                player.nextTrack();
+            } else {
+                updatePlayerStatus('Error: Player not ready');
+            }
+        });
+
+        // 进度条点击事件
+        document.querySelector('.relative.h-2').addEventListener('click', (e) => {
+            if (isPlayerReady) {
+                const rect = e.target.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const percentage = x / rect.width;
+                player.seek(percentage * player.getCurrentState().duration);
+            }
+        });
+
+        document.querySelectorAll('.heart-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                if (isPlayerReady) {
+                    fetch('/save_track', {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            updatePlayerStatus('Track saved to favorites');
+                        } else {
+                            updatePlayerStatus('Error: Failed to save track');
+                        }
+                    })
+                    .catch(error => {
+                        updatePlayerStatus('Error: Failed to save track');
+                        console.error('Error saving track:', error);
+                    });
+                } else {
+                    updatePlayerStatus('Error: Player not ready');
+                }
+            });
+        });
+
+        // 播放控制
+        document.querySelectorAll('.play-track-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                if (isPlayerReady) {
+                    const uri = button.dataset.uri;
+                    if (uri) {
+                        player.play({
+                            uris: [uri]
+                        });
+                        document.querySelector('.play-btn').textContent = 'Pause';
+                        startProgressUpdate();
+                    }
+                } else {
+                    updatePlayerStatus('Error: Player not ready');
+                }
+            });
+        });
+
+        // 初始化播放器
+        function initSpotifyPlayer() {
+            updatePlayerStatus('Loading Spotify SDK...');
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            initSpotifyPlayer();
+        });
+
+        // Time range selection
+        document.querySelectorAll('.time-range-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.time-range-btn').forEach(btn => {
+                    btn.classList.remove('bg-blue-500');
+                    btn.classList.add('bg-white', 'bg-opacity-10');
+                });
+                button.classList.remove('bg-white', 'bg-opacity-10');
+                button.classList.add('bg-blue-500');
+                currentTimeRange = button.dataset.range;
+                document.querySelectorAll('#taskList div').forEach(task => {
+                    const taskId = task.dataset.taskId;
+                    if (taskId) {
+                        updateTaskTime(taskId);
+                    }
+                });
+            });
         });
     </script>
 </body>
