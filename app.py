@@ -35,7 +35,9 @@ try:
         client_id=os.getenv('SPOTIFY_CLIENT_ID'),
         client_secret=os.getenv('SPOTIFY_CLIENT_SECRET'),
         redirect_uri=os.getenv('SPOTIFY_REDIRECT_URI'),
-        scope='user-read-recently-played playlist-modify-public playlist-modify-private'
+        scope='user-read-private user-read-email user-read-playback-state user-modify-playback-state user-read-currently-playing user-library-modify user-library-read user-read-recently-played streaming',
+        cache_handler=None,  # 禁用缓存，强制重新获取令牌
+        show_dialog=True  # 强制显示授权对话框
     )
     logger.info("Spotify OAuth setup successful")
 except Exception as e:
@@ -305,5 +307,197 @@ def create_playlist_route():
         logger.error(f"Error in create_playlist route: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/timer')
+def timer():
+    return render_template('timer.html')
+
+@app.route('/generate_background', methods=['POST'])
+def generate_background():
+    try:
+        data = request.get_json()
+        task = data.get('task', '')
+        
+        # 使用 Gemini API 生成适合任务的背景描述
+        prompt = f"Generate a beautiful, calming background image description for someone doing {task}. The image should be suitable for a focus timer app."
+        response = model.generate_content(prompt)
+        
+        # 使用生成的描述来获取图片 URL
+        # 这里可以使用 Unsplash API 或其他图片服务
+        # 暂时返回一个默认背景
+        return jsonify({
+            "background": "https://images.unsplash.com/photo-1519681393784-d120267933ba"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/next_track', methods=['POST'])
+def next_track():
+    try:
+        if 'token_info' not in session:
+            return jsonify({"error": "Not authenticated"}), 401
+        
+        sp = spotipy.Spotify(auth=session['token_info']['access_token'])
+        current_track = sp.current_playback()
+        
+        if current_track and current_track['is_playing']:
+            sp.next_track()
+            # 获取新的当前播放歌曲信息
+            new_track = sp.current_playback()
+            return jsonify({
+                "success": True,
+                "track": {
+                    "id": new_track['item']['id'],
+                    "name": new_track['item']['name'],
+                    "artists": new_track['item']['artists'],
+                    "album": new_track['item']['album']
+                }
+            })
+        else:
+            return jsonify({"error": "No track currently playing"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/get_user_playlists')
+def get_user_playlists():
+    try:
+        sp = spotipy.Spotify(auth=session.get('token_info').get('access_token'))
+        playlists = sp.current_user_playlists()
+        return jsonify({
+            "success": True,
+            "playlists": playlists['items']
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/get_token')
+def get_token():
+    try:
+        if 'token_info' not in session:
+            logger.error("No token_info in session")
+            return jsonify({"error": "Not authenticated"}), 401
+        
+        # 检查令牌是否过期
+        if sp_oauth.is_token_expired(session['token_info']):
+            logger.info("Token expired, refreshing...")
+            try:
+                session['token_info'] = sp_oauth.refresh_access_token(session['token_info']['refresh_token'])
+                logger.info("Token refreshed successfully")
+            except Exception as e:
+                logger.error(f"Error refreshing token: {str(e)}")
+                return jsonify({"error": "Failed to refresh token"}), 401
+        
+        # 验证令牌
+        sp = spotipy.Spotify(auth=session['token_info']['access_token'])
+        try:
+            user = sp.current_user()
+            logger.info(f"Token validated for user: {user['id']}")
+        except Exception as e:
+            logger.error(f"Error validating token: {str(e)}")
+            return jsonify({"error": "Invalid token"}), 401
+        
+        return jsonify({
+            "access_token": session['token_info']['access_token']
+        })
+    except Exception as e:
+        logger.error(f"Error in get_token: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/transfer_playback', methods=['POST'])
+def transfer_playback():
+    try:
+        if 'token_info' not in session:
+            logger.error("No token_info in session")
+            return jsonify({"error": "Not authenticated"}), 401
+        
+        data = request.get_json()
+        device_id = data.get('device_id')
+        
+        if not device_id:
+            logger.error("No device ID provided")
+            return jsonify({"error": "No device ID provided"}), 400
+        
+        sp = spotipy.Spotify(auth=session['token_info']['access_token'])
+        
+        # 验证设备
+        try:
+            devices = sp.devices()
+            if not any(d['id'] == device_id for d in devices['devices']):
+                logger.error(f"Device {device_id} not found in available devices")
+                return jsonify({"error": "Device not found"}), 400
+        except Exception as e:
+            logger.error(f"Error getting devices: {str(e)}")
+            return jsonify({"error": "Failed to get devices"}), 500
+        
+        # 转移播放
+        try:
+            sp.transfer_playback(device_id=device_id, force_play=True)
+            logger.info(f"Playback transferred to device {device_id}")
+            return jsonify({"success": True})
+        except Exception as e:
+            logger.error(f"Error transferring playback: {str(e)}")
+            return jsonify({"error": "Failed to transfer playback"}), 500
+    except Exception as e:
+        logger.error(f"Error in transfer_playback: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/save_track', methods=['POST'])
+def save_track():
+    try:
+        if 'token_info' not in session:
+            return jsonify({"error": "Not authenticated"}), 401
+        
+        sp = spotipy.Spotify(auth=session['token_info']['access_token'])
+        current_track = sp.current_playback()
+        
+        if current_track and current_track['item']:
+            track_id = current_track['item']['id']
+            sp.current_user_saved_tracks_add([track_id])
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "No track currently playing"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/analyze_rhythm', methods=['POST'])
+def analyze_rhythm():
+    try:
+        data = request.get_json()
+        task_times = data.get('taskTimes', {})
+        
+        if not task_times:
+            return jsonify({"analysis": "No tasks completed today. Start your journey!"})
+        
+        # 计算总时间
+        total_time = sum(task_times.values())
+        
+        # 找出最长时间的任务
+        max_task = max(task_times.items(), key=lambda x: x[1])
+        
+        # 创建提示
+        prompt = f"""Based on today's task completion times:
+Total time: {total_time} seconds
+Most focused task: {max_task[0]} ({max_task[1]} seconds)
+Task distribution: {task_times}
+
+Please provide a brief, encouraging analysis of the user's work rhythm today. Focus on:
+1. Overall productivity pattern
+2. Most productive areas
+3. Suggestions for improvement
+Keep it concise and motivational."""
+
+        try:
+            response = model.generate_content(prompt)
+            if response and response.text:
+                return jsonify({"analysis": response.text})
+            else:
+                return jsonify({"analysis": "Unable to analyze rhythm at the moment."})
+        except Exception as e:
+            logger.error(f"Error generating rhythm analysis: {str(e)}")
+            return jsonify({"analysis": "Error analyzing rhythm."})
+            
+    except Exception as e:
+        logger.error(f"Error in analyze_rhythm: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True) 
+    app.run(host='0.0.0.0', port=3000, debug=True) 
