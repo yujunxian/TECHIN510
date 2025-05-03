@@ -95,3 +95,72 @@ https://tempolog.ngrok.app
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+# TempoLog – Client Milestone 1 Meeting Note - May 02
+
+## 1. Features Reviewed
+
+### Task Time Tracking & Statistics
+- Users can add tasks and track time per task.
+- Cumulative time is displayed with support for daily/weekly/monthly views.
+
+### Spotify Music Recommendation & Web Playback
+- Integrated Spotify login.
+- Fetches recommended songs and plays them directly via Spotify Web Playback SDK.
+
+### AI Rhythm Analysis
+- Integrated Gemini API to auto-generate daily rhythm summaries based on user task distribution.
+- Enhances motivation and engagement.
+
+---
+
+## 2. Unit Testing
+- Unit tests implemented for key backend functions:
+  - Task time accumulation logic
+  - Music recommendation interface
+- Ensures correctness of main business logic.
+
+---
+
+## 3. README Update
+README has been thoroughly updated to include:
+- Environment setup & dependencies
+- ngrok configuration and startup
+- Virtual environment instructions
+- Project feature overview
+- Troubleshooting for common issues
+
+---
+
+## 4. Client Review
+
+### Code Review
+*Approved.* Code structure is clean, well-commented, and easy to maintain.
+
+### Functional Review
+- Personally tested: task creation, timing, music recommendation, AI analysis.
+- UI is intuitive and responsive.
+
+---
+
+## 5. Approvals & Requested Changes
+  - Core features approved.
+  - Recommended improvements:
+  - Task deletion & editing support
+  - Better mobile responsiveness
+
+---
+
+## 6. Bug Reports & Suggestions
+
+### Bug Feedback
+- Spotify login occasionally fails due to token expiration; requires page refresh.
+
+### Suggestions
+- Add celebration animation after task completion.
+- Implement task categorization and labeling for better management.
+
+---
+
+## 7. Reflection
+The project has achieved all major goals: task tracking, Spotify integration, and AI rhythm analysis. Third-party services work smoothly, and documentation is clear. Improvements should focus on exception handling, UI polishing, and more test coverage—especially for edge cases and mobile behavior.
+
