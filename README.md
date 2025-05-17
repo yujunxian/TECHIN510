@@ -1,3 +1,8 @@
+Meeting note(5/16): https://github.com/yujunxian/TempoLog/issues/4
+
+Client has passed my code.(5/16)
+
+
 # TempoLog: Time Management with Music
 
 TempoLog is a web application that combines time management with Spotify music integration, helping users track their tasks while enjoying personalized music recommendations.
