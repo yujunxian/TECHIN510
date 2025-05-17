@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, url_for, jsonify
+from flask import Flask, render_template, request, redirect, session, url_for, jsonify, send_from_directory
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
@@ -7,6 +7,12 @@ import logging
 import google.generativeai as genai
 import json
 from google.api_core import exceptions as google_exceptions
+import firebase_admin
+from firebase_admin import credentials, firestore
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_mail import Mail, Message
+import random
+from datetime import datetime, timedelta
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -17,7 +23,7 @@ load_dotenv()
 # Configure Gemini
 try:
     genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     logger.info("Gemini API configured successfully")
 except Exception as e:
     logger.error(f"Error configuring Gemini API: {str(e)}")
@@ -37,12 +43,27 @@ try:
         redirect_uri=os.getenv('SPOTIFY_REDIRECT_URI'),
         scope='user-read-private user-read-email user-read-playback-state user-modify-playback-state user-read-currently-playing user-library-modify user-library-read user-read-recently-played streaming',
         cache_handler=None,  # 禁用缓存，强制重新获取令牌
-        show_dialog=True  # 强制显示授权对话框
+        show_dialog=False  # 只在第一次需要授权时弹窗
     )
     logger.info("Spotify OAuth setup successful")
 except Exception as e:
     logger.error(f"Error setting up Spotify OAuth: {str(e)}")
     raise
+
+cred = credentials.Certificate('tempolog-c8c18-firebase-adminsdk-fbsvc-979e82ddb3.json')
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 465
+app.config['MAIL_USE_SSL'] = True
+app.config['MAIL_USERNAME'] = 'ssy1780626743@gmail.com'
+app.config['MAIL_PASSWORD'] = 'jhsc nlpi uopu dchz'
+mail = Mail(app)
+
+# 生成验证码
+def generate_code():
+    return str(random.randint(100000, 999999))
 
 def get_recent_tracks():
     if 'token_info' not in session:
@@ -181,16 +202,26 @@ def create_playlist(tracks):
 @app.route('/')
 def index():
     try:
+        # 首先检查用户是否已登录
+        if 'user_email' not in session:
+            return redirect(url_for('user_auth'))
+            
+        # 用户已登录，检查是否已连接Spotify
         if 'token_info' not in session:
+            # 已登录但未连接Spotify，显示需要连接Spotify的页面
             return render_template('login.html')
-        
+            
+        # 用户已登录且已连接Spotify，显示主页
         tracks = get_recent_tracks()
         # 自动生成推荐
         response = generate_recommendations(tracks, "Recommend songs based on my recent listening history")
         if 'recommendations' in response:
             session['recommendations'] = response['recommendations']
-        
-        return render_template('index.html', tracks=tracks, recommendations=response.get('recommendations', []))
+        # 获取用户所有任务历史
+        user_ref = db.collection('users').document(session['user_email'])
+        user_doc = user_ref.get()
+        user_tasks = user_doc.to_dict().get('tasks', []) if user_doc.exists else []
+        return render_template('index.html', tracks=tracks, recommendations=response.get('recommendations', []), username=session.get('username', ''), user_tasks=user_tasks)
     except Exception as e:
         logger.error(f"Error in index route: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -317,15 +348,15 @@ def generate_background():
         data = request.get_json()
         task = data.get('task', '')
         
-        # 使用 Gemini API 生成适合任务的背景描述
-        prompt = f"Generate a beautiful, calming background image description for someone doing {task}. The image should be suitable for a focus timer app."
-        response = model.generate_content(prompt)
+        # 使用本地图片而不是外部API
+        photos = ['forest.jpg', 'trail.jpg', 'bay.jpg', 'star.jpg']
+        # 随机选择一张图片，但不是star.jpg（因为star.jpg用于主页）
+        available_photos = [p for p in photos if p != 'star.jpg']
+        selected_photo = random.choice(available_photos)
         
-        # 使用生成的描述来获取图片 URL
-        # 这里可以使用 Unsplash API 或其他图片服务
-        # 暂时返回一个默认背景
+        # 返回本地图片URL
         return jsonify({
-            "background": "https://images.unsplash.com/photo-1519681393784-d120267933ba"
+            "background": f"/static/photo/{selected_photo}"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -498,6 +529,606 @@ Keep it concise and motivational."""
     except Exception as e:
         logger.error(f"Error in analyze_rhythm: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/firestore-test')
+def firestore_test():
+    # 写入一条测试数据
+    db.collection('test').add({'msg': 'Hello Firebase!', 'timestamp': firestore.SERVER_TIMESTAMP})
+    # 读取所有测试数据
+    docs = db.collection('test').stream()
+    result = [doc.to_dict() for doc in docs]
+    return {'data': result}
+
+@app.route('/add_task', methods=['POST'])
+def add_task():
+    if 'user_email' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    data = request.get_json()
+    task = data.get('task')
+    if not task:
+        return jsonify({'error': 'No task provided'}), 400
+    user_ref = db.collection('users').document(session['user_email'])
+    user_doc = user_ref.get()
+    if not user_doc.exists:
+        return jsonify({'error': 'User not found'}), 404
+    user_data = user_doc.to_dict()
+    tasks = user_data.get('tasks', [])
+    # 新增任务历史结构：{'content': 内容, 'timestamp': 时间戳}
+    tasks.append({'content': task, 'timestamp': datetime.utcnow().isoformat()})
+    user_ref.update({'tasks': tasks})
+    return jsonify({'success': True, 'tasks': tasks})
+
+@app.route('/del_task', methods=['POST'])
+def del_task():
+    if 'user_email' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    data = request.get_json()
+    content = data.get('content')
+    timestamp = data.get('timestamp')
+    if not content or not timestamp:
+        return jsonify({'error': '参数不完整'}), 400
+    user_ref = db.collection('users').document(session['user_email'])
+    user_doc = user_ref.get()
+    if not user_doc.exists:
+        return jsonify({'error': 'User not found'}), 404
+    user_data = user_doc.to_dict()
+    tasks = user_data.get('tasks', [])
+    new_tasks = [t for t in tasks if not (t.get('content') == content and t.get('timestamp') == timestamp)]
+    user_ref.update({'tasks': new_tasks})
+    return jsonify({'success': True, 'tasks': new_tasks})
+
+@app.route('/user')
+def user_auth():
+    return render_template('user_auth.html')
+
+@app.route('/send_verification_code', methods=['POST'])
+def send_verification_code():
+    data = request.get_json()
+    email = data.get('email')
+    if not email:
+        return jsonify({'success': False, 'error': 'Email required'})
+    code = generate_code()
+    session['email_verification_code'] = code
+    session['email_to_verify'] = email
+    session['code_expire_time'] = (datetime.utcnow() + timedelta(minutes=5)).isoformat()
+    try:
+        msg = Message(
+            subject="您的注册验证码",
+            sender=app.config['MAIL_USERNAME'],
+            recipients=[email],
+            body=f"您的验证码是：{code}，5分钟内有效。"
+        )
+        mail.send(msg)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/verify_code', methods=['POST'])
+def verify_code():
+    data = request.get_json()
+    code = data.get('code')
+    email = data.get('email')
+    expire_time = session.get('code_expire_time')
+    if not (code and email and expire_time):
+        return jsonify({'success': False, 'error': '参数不完整'})
+    if datetime.utcnow() > datetime.fromisoformat(expire_time):
+        return jsonify({'success': False, 'error': '验证码已过期'})
+    if (session.get('email_verification_code') == code and session.get('email_to_verify') == email):
+        session['email_verified'] = True
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'error': '验证码错误'})
+
+@app.route('/auth', methods=['POST'])
+def auth():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+    is_login = data.get('isLogin', True)
+    username = data.get('username')
+    
+    # 超级用户快速登录（仅用于调试）
+    if is_login and email == 'ssy' and password == '11':
+        session['user_email'] = 'ssy@debug.com'
+        session['username'] = 'Super User (Debug)'
+        # 确保超级用户在数据库中存在
+        super_user_ref = db.collection('users').document('ssy@debug.com')
+        if not super_user_ref.get().exists:
+            super_user_ref.set({
+                'email': 'ssy@debug.com', 
+                'password': generate_password_hash('11'), 
+                'username': 'Super User (Debug)', 
+                'tasks': []
+            })
+        return jsonify({'success': True})
+    
+    if not email or not password:
+        return jsonify({'error': 'Email and password required'}), 400
+    user_ref = db.collection('users').document(email)
+    user_doc = user_ref.get()
+    if is_login:
+        # 登录
+        if not user_doc.exists:
+            return jsonify({'error': 'User not found'}), 404
+        user_data = user_doc.to_dict()
+        if not check_password_hash(user_data.get('password', ''), password):
+            return jsonify({'error': 'Incorrect password'}), 401
+        session['user_email'] = email
+        session['username'] = user_data.get('username', '')
+        return jsonify({'success': True})
+    else:
+        # 注册
+        if user_doc.exists:
+            return jsonify({'error': 'User already exists'}), 409
+        # 检查邮箱验证码
+        if not session.get('email_verified') or session.get('email_to_verify') != email:
+            return jsonify({'error': '请先完成邮箱验证'}), 400
+        if not username:
+            return jsonify({'error': '用户名不能为空'}), 400
+        hashed_pw = generate_password_hash(password)
+        user_ref.set({'email': email, 'password': hashed_pw, 'username': username, 'tasks': []})
+        session['user_email'] = email
+        session['username'] = username
+        session.pop('email_verified', None)
+        session.pop('email_verification_code', None)
+        session.pop('email_to_verify', None)
+        session.pop('code_expire_time', None)
+        return jsonify({'success': True})
+
+@app.route('/admin_login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username == 'admin' and password == '112233':
+            session['is_admin'] = True
+            return redirect(url_for('admin_dashboard'))
+        else:
+            return render_template('admin_login.html', error='用户名或密码错误')
+    return render_template('admin_login.html')
+
+@app.route('/admin_dashboard')
+def admin_dashboard():
+    if not session.get('is_admin'):
+        return redirect(url_for('admin_login'))
+    users = db.collection('users').stream()
+    user_list = []
+    for u in users:
+        d = u.to_dict()
+        user_list.append({'email': u.id, 'username': d.get('username', ''), 'tasks': d.get('tasks', [])})
+    return render_template('admin_dashboard.html', users=user_list)
+
+@app.route('/delete_user', methods=['POST'])
+def delete_user():
+    if not session.get('is_admin'):
+        return jsonify({'success': False, 'error': '未授权'}), 403
+    data = request.get_json()
+    email = data.get('email')
+    if not email:
+        return jsonify({'success': False, 'error': '缺少邮箱'})
+    try:
+        db.collection('users').document(email).delete()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/logout_admin')
+def logout_admin():
+    session.pop('is_admin', None)
+    return redirect(url_for('admin_login'))
+
+@app.route('/update_task_time', methods=['POST'])
+def update_task_time():
+    if 'user_email' not in session:
+        return jsonify({'error': 'Not logged in'}), 401
+    data = request.get_json()
+    content = data.get('content')
+    timestamp = data.get('timestamp')
+    time_spent = data.get('timeSpent')
+    if not content or not timestamp or not time_spent:
+        return jsonify({'error': '参数不完整'}), 400
+    user_ref = db.collection('users').document(session['user_email'])
+    user_doc = user_ref.get()
+    if not user_doc.exists:
+        return jsonify({'error': 'User not found'}), 404
+    user_data = user_doc.to_dict()
+    tasks = user_data.get('tasks', [])
+    new_tasks = []
+    from datetime import datetime
+    today_str = datetime.utcnow().strftime('%Y-%m-%d')
+    for t in tasks:
+        if t.get('content') == content and t.get('timestamp') == timestamp:
+            # 新增/累加 times 字段
+            if 'times' not in t:
+                t['times'] = {}
+            t['times'][today_str] = t['times'].get(today_str, 0) + int(time_spent)
+        new_tasks.append(t)
+    user_ref.update({'tasks': new_tasks})
+    return jsonify({'success': True, 'tasks': new_tasks})
+
+@app.route('/gemini_recommend', methods=['GET'])
+def gemini_recommend():
+    try:
+        if 'token_info' not in session:
+            return jsonify({"error": "Not authenticated with Spotify"}), 401
+        
+        # Get the user's recent tracks (limited to 10)
+        try:
+            sp = spotipy.Spotify(auth=session['token_info']['access_token'])
+            recently_played = sp.current_user_recently_played(limit=10)
+            recent_tracks = [item['track'] for item in recently_played['items']]
+            
+            if not recent_tracks:
+                return jsonify({"error": "No recent tracks found. Please listen to some music on Spotify first."}), 400
+            
+            # Format the tracks for Gemini
+            track_info = "\n".join([
+                f"- {track['name']} by {', '.join([artist['name'] for artist in track['artists']])} ({track['album']['name']})"
+                for track in recent_tracks
+            ])
+            
+            # Create prompt for Gemini
+            prompt = f"""Based on these 10 recently played tracks:
+{track_info}
+
+Please recommend exactly 3 songs that would match the user's taste. For each song, provide:
+1. The exact song title
+2. The exact artist name
+3. A brief explanation (2-3 sentences) of why you're recommending it
+
+Format your response as a simple list, with each recommendation on a new line, like this:
+Song Title - Artist Name
+Explanation: [your explanation]
+
+Song Title - Artist Name
+Explanation: [your explanation]
+
+Song Title - Artist Name
+Explanation: [your explanation]"""
+
+            # Generate recommendations using Gemini
+            logger.info("Sending request to Gemini API for personalized recommendations")
+            response = model.generate_content(prompt)
+            
+            if not response or not response.text:
+                return jsonify({"error": "Empty response from Gemini API"}), 500
+            
+            # Parse the response into recommendations
+            recommendations = []
+            lines = response.text.strip().split('\n')
+            current_rec = {}
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                if ' - ' in line and not line.startswith('Explanation:'):
+                    if current_rec:
+                        recommendations.append(current_rec)
+                    song, artist = line.split(' - ', 1)
+                    current_rec = {
+                        'song': song.strip(),
+                        'artist': artist.strip(),
+                        'explanation': ''
+                    }
+                elif line.startswith('Explanation:'):
+                    if current_rec:
+                        current_rec['explanation'] = line.replace('Explanation:', '').strip()
+            
+            if current_rec:
+                recommendations.append(current_rec)
+            
+            if len(recommendations) != 3:
+                return jsonify({"error": f"Expected 3 recommendations, got {len(recommendations)}"}), 500
+            
+            # Search for each track on Spotify to get playable URIs
+            for rec in recommendations:
+                results = sp.search(q=f"track:{rec['song']} artist:{rec['artist']}", type='track', limit=1)
+                if results['tracks']['items']:
+                    track = results['tracks']['items'][0]
+                    rec['spotify_id'] = track['id']
+                    rec['spotify_uri'] = track['uri']
+                    rec['album_cover'] = track['album']['images'][0]['url'] if track['album']['images'] else None
+                else:
+                    rec['spotify_id'] = None
+                    rec['spotify_uri'] = None
+                    rec['album_cover'] = None
+            
+            # Store recommendations in session
+            session['recommendations'] = recommendations
+            
+            return jsonify({"success": True, "recommendations": recommendations})
+            
+        except Exception as e:
+            logger.error(f"Error getting recommendations: {str(e)}")
+            return jsonify({"error": f"Error generating recommendations: {str(e)}"}), 500
+            
+    except Exception as e:
+        logger.error(f"Error in gemini_recommend route: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/get_todays_rhythm', methods=['GET'])
+def get_todays_rhythm():
+    try:
+        if 'user_email' not in session:
+            return jsonify({"error": "Not logged in"}), 401
+        if 'token_info' not in session:
+            return jsonify({"error": "Not authenticated with Spotify"}), 401
+        
+        # 获取用户所有任务历史
+        user_ref = db.collection('users').document(session['user_email'])
+        user_doc = user_ref.get()
+        
+        if not user_doc.exists:
+            return jsonify({"error": "User data not found"}), 404
+            
+        user_tasks = user_doc.to_dict().get('tasks', [])
+        
+        # 计算今天的任务时间
+        today_str = datetime.utcnow().strftime('%Y-%m-%d')
+        today_task_times = {}
+        total_time_today = 0
+        
+        for task in user_tasks:
+            if 'times' in task and today_str in task['times']:
+                today_task_times[task['content']] = task['times'][today_str]
+                total_time_today += task['times'][today_str]
+        
+        if not today_task_times:
+            return jsonify({
+                "analysis": "You haven't completed any tasks today. Start your day now!",
+                "song": None
+            })
+        
+        # 找出今天花费时间最长的任务
+        max_task = max(today_task_times.items(), key=lambda x: x[1])
+        max_task_name = max_task[0]
+        max_task_time = max_task[1]
+        
+        # 创建提示 - 使用英文
+        prompt = f"""Analyze the user's task completion for today:
+Total time: {total_time_today} seconds
+Task with most time: {max_task_name} ({max_task_time} seconds)
+All task time distribution: {today_task_times}
+
+Please provide the following in ENGLISH ONLY:
+1. A short, poetic, and encouraging analysis of the user's work rhythm today (100-200 words)
+2. Recommend EXACTLY ONE song that perfectly matches their work pattern today
+
+Respond with a clean JSON object WITHOUT any Markdown formatting like ```json or ``` around it:
+{{
+  "analysis": "Your poetic analysis in English",
+  "song": {{
+    "title": "Exact song title",
+    "artist": "Exact artist name",
+    "reason": "Brief reason for recommendation (2-3 sentences)"
+  }}
+}}"""
+
+        response = model.generate_content(prompt)
+        if not response or not response.text:
+            return jsonify({
+                "analysis": "Unable to analyze today's rhythm. Please try again later.",
+                "song": None
+            })
+        
+        try:
+            # 清理响应文本，删除可能的Markdown代码块格式
+            text = response.text.strip()
+            # 移除可能的markdown代码块格式
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0].strip()
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0].strip()
+                
+            # 尝试解析Gemini的响应为JSON
+            result = json.loads(text)
+            
+            # 确保只有一首歌曲推荐
+            if isinstance(result.get('song'), list) and len(result.get('song')) > 0:
+                result['song'] = result['song'][0]  # 只保留第一首歌
+            
+            # 如果有歌曲推荐，在Spotify上搜索
+            if result.get('song') and result['song'].get('title') and result['song'].get('artist'):
+                try:
+                    sp = spotipy.Spotify(auth=session['token_info']['access_token'])
+                    search_query = f"track:{result['song']['title']} artist:{result['song']['artist']}"
+                    search_results = sp.search(q=search_query, type='track', limit=1)
+                    
+                    if search_results['tracks']['items']:
+                        track = search_results['tracks']['items'][0]
+                        result['song']['spotify_id'] = track['id']
+                        result['song']['spotify_uri'] = track['uri']
+                        result['song']['album_cover'] = track['album']['images'][0]['url'] if track['album']['images'] else None
+                except Exception as e:
+                    logger.error(f"Error searching for recommended song: {str(e)}")
+            
+            return jsonify(result)
+        except json.JSONDecodeError as e:
+            # Gemini可能没有返回正确的JSON格式，尝试提取文本分析
+            logger.error(f"Error parsing Gemini response: {str(e)}, response: {response.text}")
+            
+            # 返回文本形式的分析
+            return jsonify({
+                "analysis": response.text.replace("```json", "").replace("```", "").strip(),
+                "song": None
+            })
+            
+    except Exception as e:
+        logger.error(f"Error in get_todays_rhythm: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/task_recommendations', methods=['POST'])
+def task_recommendations():
+    try:
+        if 'token_info' not in session:
+            return jsonify({"error": "Not authenticated with Spotify"}), 401
+            
+        data = request.get_json()
+        task_name = data.get('task')
+        
+        if not task_name:
+            return jsonify({"error": "No task provided"}), 400
+        
+        # 使用Gemini生成适合任务的歌曲推荐
+        prompt = f"""为用户正在进行的任务"{task_name}"推荐10首最适合的歌曲。
+        
+请考虑这个任务需要什么样的氛围和节奏：是需要专注、放松、精力充沛还是创意？
+根据任务的性质，推荐10首最适合的歌曲。
+
+请使用以下JSON格式回复：
+```json
+[
+  {{
+    "title": "歌曲名称1",
+    "artist": "歌手名称1",
+    "reason": "推荐理由（1-2句话）"
+  }},
+  {{
+    "title": "歌曲名称2",
+    "artist": "歌手名称2",
+    "reason": "推荐理由（1-2句话）"
+  }},
+  ...
+]
+```
+
+确保歌曲名称和歌手名称是准确的，这样我们才能在Spotify上找到它们。"""
+
+        response = model.generate_content(prompt)
+        
+        if not response or not response.text:
+            return jsonify({"error": "无法生成推荐，请稍后再试"}), 500
+            
+        try:
+            # 尝试提取JSON部分
+            text = response.text
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0].strip()
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0].strip()
+                
+            recommendations = json.loads(text)
+            
+            # 在Spotify上搜索这些歌曲
+            sp = spotipy.Spotify(auth=session['token_info']['access_token'])
+            
+            for rec in recommendations:
+                if not rec.get('title') or not rec.get('artist'):
+                    continue
+                    
+                search_query = f"track:{rec['title']} artist:{rec['artist']}"
+                search_results = sp.search(q=search_query, type='track', limit=1)
+                
+                if search_results['tracks']['items']:
+                    track = search_results['tracks']['items'][0]
+                    rec['spotify_id'] = track['id']
+                    rec['spotify_uri'] = track['uri']
+                    rec['album_cover'] = track['album']['images'][0]['url'] if track['album']['images'] else None
+                else:
+                    rec['spotify_id'] = None
+                    rec['spotify_uri'] = None
+                    rec['album_cover'] = None
+            
+            # 创建或更新任务播放列表
+            playlist_id = None
+            playlist_name = f"For {task_name}"
+            
+            # 检查是否已有同名播放列表
+            playlists = sp.current_user_playlists()
+            for playlist in playlists['items']:
+                if playlist['name'] == playlist_name:
+                    playlist_id = playlist['id']
+                    break
+                    
+            # 如果找不到同名播放列表，创建一个新的
+            if not playlist_id:
+                user_id = sp.current_user()['id']
+                new_playlist = sp.user_playlist_create(
+                    user_id,
+                    playlist_name,
+                    public=False,
+                    description=f"Songs recommended for {task_name}"
+                )
+                playlist_id = new_playlist['id']
+            
+            # 添加推荐歌曲到播放列表
+            track_uris = [rec['spotify_uri'] for rec in recommendations if rec.get('spotify_uri')]
+            if track_uris:
+                # 先清空播放列表
+                sp.playlist_replace_items(playlist_id, [])
+                # 添加新歌曲
+                sp.playlist_add_items(playlist_id, track_uris)
+            
+            return jsonify({
+                "success": True,
+                "recommendations": recommendations,
+                "playlist_id": playlist_id,
+                "playlist_name": playlist_name
+            })
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing Gemini response: {str(e)}, response: {response.text}")
+            return jsonify({"error": "无法解析推荐结果"}), 500
+            
+    except Exception as e:
+        logger.error(f"Error in task_recommendations: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/remove_from_playlist', methods=['POST'])
+def remove_from_playlist():
+    try:
+        if 'token_info' not in session:
+            return jsonify({"error": "Not authenticated with Spotify"}), 401
+            
+        data = request.get_json()
+        track_uri = data.get('track_uri')
+        playlist_id = data.get('playlist_id')
+        
+        if not track_uri or not playlist_id:
+            return jsonify({"error": "Track URI and playlist ID are required"}), 400
+            
+        sp = spotipy.Spotify(auth=session['token_info']['access_token'])
+        
+        # 从播放列表中移除歌曲
+        sp.playlist_remove_all_occurrences_of_items(playlist_id, [track_uri])
+        
+        # 播放下一首歌曲（如果有）
+        try:
+            sp.next_track()
+        except:
+            pass
+            
+        return jsonify({"success": True})
+        
+    except Exception as e:
+        logger.error(f"Error in remove_from_playlist: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/static/photo/<path:filename>')
+def serve_photo(filename):
+    return send_from_directory('resource/photo', filename)
+
+@app.route('/super')
+def super_login():
+    """Direct login with super admin credentials"""
+    # Create super admin user if doesn't exist
+    super_user_ref = db.collection('users').document('ssy@debug.com')
+    if not super_user_ref.get().exists:
+        super_user_ref.set({
+            'email': 'ssy@debug.com', 
+            'password': generate_password_hash('11'), 
+            'username': 'Super User (Debug)', 
+            'tasks': []
+        })
+    
+    # Set session values for automatic login
+    session['user_email'] = 'ssy@debug.com'
+    session['username'] = 'Super User (Debug)'
+    
+    # Redirect to home page
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3000, debug=True) 
