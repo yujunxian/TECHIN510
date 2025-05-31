@@ -1,4 +1,5 @@
 Meeting note(5/16): https://github.com/yujunxian/TempoLog/issues/4
+[Client Milestone 2 - Issue #5](https://github.com/yujunxian/TempoLog/issues/5)
 
 Client has passed my code.(5/16)
 
