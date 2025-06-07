@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Authentication</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f5f6fa; margin: 0; padding: 0; }
+        .auth-container { max-width: 400px; margin: 60px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 32px; }
+        h2 { text-align: center; color: #222; }
+        form { display: flex; flex-direction: column; gap: 16px; }
+        input[type="text"], input[type="password"], input[type="email"] {
+            padding: 10px; border: 1px solid #ccc; border-radius: 4px;
+        }
+        button { background: #1db954; color: #fff; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #159c43; }
+        .switch-link { text-align: center; margin-top: 12px; color: #555; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h2 id="form-title">Login</h2>
+        <form id="auth-form">
+            <input type="email" id="email" placeholder="Email" required>
+            <input type="text" id="username" placeholder="用户名" style="display:none;" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <div id="code-section" style="display:none;flex-direction:column;gap:8px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="text" id="verify-code" placeholder="验证码" style="flex:1;">
+                    <button type="button" id="send-code-btn">发送验证码</button>
+                </div>
+                <button type="button" id="check-code-btn">验证验证码</button>
+            </div>
+            <button type="submit">Login</button>
+        </form>
+        <div class="switch-link" id="switch-link">Don't have an account? Register</div>
+        <div id="error-msg" style="color:red;text-align:center;margin-top:10px;"></div>
+    </div>
+    <script>
+        const form = document.getElementById('auth-form');
+        const switchLink = document.getElementById('switch-link');
+        const formTitle = document.getElementById('form-title');
+        const errorMsg = document.getElementById('error-msg');
+        let isLogin = true;
+        let codeVerified = false;
+        const codeSection = document.getElementById('code-section');
+        const sendCodeBtn = document.getElementById('send-code-btn');
+        const checkCodeBtn = document.getElementById('check-code-btn');
+        const verifyCodeInput = document.getElementById('verify-code');
+
+        switchLink.onclick = function() {
+            isLogin = !isLogin;
+            if (isLogin) {
+                formTitle.textContent = 'Login';
+                form.querySelector('button[type="submit"]').textContent = 'Login';
+                switchLink.textContent = "Don't have an account? Register";
+                codeSection.style.display = 'none';
+                document.getElementById('username').style.display = 'none';
+            } else {
+                formTitle.textContent = 'Register';
+                form.querySelector('button[type="submit"]').textContent = 'Register';
+                switchLink.textContent = 'Already have an account? Login';
+                codeSection.style.display = 'flex';
+                document.getElementById('username').style.display = 'block';
+            }
+            errorMsg.textContent = '';
+        };
+
+        if (sendCodeBtn) {
+            sendCodeBtn.onclick = async function() {
+                const email = document.getElementById('email').value;
+                if (!email) {
+                    errorMsg.textContent = '请输入邮箱';
+                    return;
+                }
+                sendCodeBtn.disabled = true;
+                sendCodeBtn.textContent = '发送中...';
+                const res = await fetch('/send_verification_code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    errorMsg.textContent = '验证码已发送，请查收邮箱';
+                } else {
+                    errorMsg.textContent = data.error || '验证码发送失败';
+                }
+                sendCodeBtn.disabled = false;
+                sendCodeBtn.textContent = '发送验证码';
+            };
+        }
+
+        if (checkCodeBtn) {
+            checkCodeBtn.onclick = async function() {
+                const email = document.getElementById('email').value;
+                const code = verifyCodeInput.value;
+                if (!email || !code) {
+                    errorMsg.textContent = '请输入邮箱和验证码';
+                    return;
+                }
+                checkCodeBtn.disabled = true;
+                checkCodeBtn.textContent = '验证中...';
+                const res = await fetch('/verify_code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    errorMsg.textContent = '验证码验证成功，点击注册按钮完成注册';
+                    errorMsg.style.color = 'green';
+                    codeVerified = true;
+                    
+                    // 自动注册 - 取消注释以启用自动注册
+                    // form.dispatchEvent(new Event('submit'));
+                } else {
+                    errorMsg.textContent = data.error || '验证码错误';
+                    errorMsg.style.color = 'red';
+                    codeVerified = false;
+                }
+                checkCodeBtn.disabled = false;
+                checkCodeBtn.textContent = '验证验证码';
+            };
+        }
+
+        form.onsubmit = async function(e) {
+            e.preventDefault();
+            errorMsg.textContent = '';
+            errorMsg.style.color = 'red';
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const username = document.getElementById('username').value;
+            
+            // 表单验证
+            if (!email) {
+                errorMsg.textContent = '请输入邮箱';
+                return;
+            }
+            if (!password) {
+                errorMsg.textContent = '请输入密码';
+                return;
+            }
+            if (!isLogin && !username) {
+                errorMsg.textContent = '请输入用户名';
+                return;
+            }
+            if (!isLogin && !codeVerified) {
+                errorMsg.textContent = '请先完成邮箱验证码验证';
+                return;
+            }
+            
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = isLogin ? '登录中...' : '注册中...';
+            
+            let body = { email, password, isLogin };
+            if (!isLogin) body.username = username;
+            try {
+                const res = await fetch('/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                
+                if (res.ok && data.success) {
+                    window.location.href = '/';
+                } else {
+                    errorMsg.textContent = data.error || (isLogin ? '登录失败：用户名或密码错误' : '注册失败');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalText;
+                }
+            } catch (err) {
+                errorMsg.textContent = '网络错误，请稍后再试';
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            }
+        };
+    </script>
+</body>
+</html> 

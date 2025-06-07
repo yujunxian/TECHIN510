@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>管理员登录</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f5f6fa; }
+        .login-container { max-width: 350px; margin: 80px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 32px; }
+        h2 { text-align: center; }
+        form { display: flex; flex-direction: column; gap: 16px; }
+        input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #1db954; color: #fff; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #159c43; }
+        .error { color: red; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>管理员登录</h2>
+        <form method="post">
+            <input type="text" name="username" placeholder="用户名" required>
+            <input type="password" name="password" placeholder="密码" required>
+            <button type="submit">登录</button>
+        </form>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    </div>
+</body>
+</html> 

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Timer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+        }
+        .task-title {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        .timer-display {
+            font-size: 8rem;
+            font-weight: 200;
+            letter-spacing: -0.05em;
+            font-variant-numeric: tabular-nums;
+            margin-bottom: 1.5rem;
+        }
+        .complete-button {
+            margin-top: 1.5rem;
+            padding: 0.75rem 2rem;
+            font-size: 1.25rem;
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+        .complete-button:hover {
+            background-color: #2563eb; /* blue-600 */
+        }
+        .player-container {
+            width: 100%;
+            max-width: 500px;
+            padding: 1rem;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            backdrop-filter: blur(5px);
+        }
+        .hidden { display: none; }
+        .completion-message {
+            text-align: center;
+            font-size: 2.5rem;
+            animation: fadeIn 1s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mainContent" class="flex flex-col items-center">
+        <h1 id="taskTitle" class="task-title"></h1>
+        <div id="timer" class="timer-display">00:00:00</div>
+
+        <!-- Music Player -->
+        <div class="player-container">
+            <div class="flex items-center w-full justify-between gap-4">
+                <div class="flex items-center min-w-0 flex-1">
+                    <span id="songTitle" class="text-base font-semibold text-white truncate mr-2"></span>
+                    <span id="artistName" class="text-sm text-gray-400 truncate"></span>
+                </div>
+                <div class="flex items-center gap-4 flex-shrink-0 justify-center mx-auto">
+                    <button id="prevBtn" class="bg-white bg-opacity-10 hover:bg-opacity-20 p-2 rounded-full">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6l-8.5 6z" fill="currentColor"/></svg>
+                    </button>
+                    <button id="playBtn" class="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full flex items-center justify-center w-12 h-12">
+                        <svg id="playIcon" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+                        <svg id="pauseIcon" class="hidden" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" fill="currentColor"/></svg>
+                    </button>
+                    <button id="nextBtn" class="bg-white bg-opacity-10 hover:bg-opacity-20 p-2 rounded-full">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" fill="currentColor"/></svg>
+                    </button>
+                </div>
+                <div class="flex-1"></div>
+            </div>
+            <div class="flex items-center w-full justify-center mt-2">
+                <span id="currentTime" class="text-xs text-gray-400 mr-2">0:00</span>
+                <div class="relative h-1 bg-gray-700 rounded-full flex-1">
+                    <div id="progressBar" class="absolute h-full bg-green-500 rounded-full" style="width: 0%"></div>
+                </div>
+                <span id="totalTime" class="text-xs text-gray-400 ml-2">0:00</span>
+            </div>
+        </div>
+        
+        <button id="completeBtn" class="complete-button">Complete Task</button>
+    </div>
+
+    <div id="completionContent" class="hidden">
+        <h2 class="completion-message"></h2>
+    </div>
+
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+    <script>
+        // --- Global State ---
+        let timerInterval;
+        let spotifyPlayer;
+        let deviceId;
+
+        // --- Timer Functions ---
+        function startTimer() {
+            let startTime = Date.now();
+            timerInterval = setInterval(() => {
+                const elapsedTime = Date.now() - startTime;
+                const totalSeconds = Math.floor(elapsedTime / 1000);
+                const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+                const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                document.getElementById('timer').textContent = `${hours}:${minutes}:${seconds}`;
+            }, 1000);
+        }
+
+        // --- Spotify Player Functions ---
+        function formatTime(ms) {
+            if (isNaN(ms)) return '0:00';
+            const minutes = Math.floor(ms / 60000);
+            const seconds = Math.floor((ms % 60000) / 1000);
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function updatePlayerUI(state) {
+            if (!state) return;
+            const track = state.track_window.current_track;
+            document.getElementById('songTitle').textContent = track.name;
+            document.getElementById('artistName').textContent = track.artists.map(a => a.name).join(', ');
+            document.getElementById('progressBar').style.width = `${(state.position / state.duration) * 100}%`;
+            document.getElementById('currentTime').textContent = formatTime(state.position);
+            document.getElementById('totalTime').textContent = formatTime(state.duration);
+            document.getElementById('playIcon').classList.toggle('hidden', !state.paused);
+            document.getElementById('pauseIcon').classList.toggle('hidden', state.paused);
+        }
+        
+        window.onSpotifyWebPlaybackSDKReady = () => {
+            fetch('/get_token').then(r => r.json()).then(data => {
+                if (!data.access_token) { console.error("Could not get Spotify token."); return; }
+                spotifyPlayer = new Spotify.Player({
+                    name: 'TempoLog Task Timer',
+                    getOAuthToken: cb => { cb(data.access_token); },
+                    volume: 0.5
+                });
+                spotifyPlayer.addListener('ready', ({ device_id }) => {
+                    deviceId = device_id;
+                    fetch('/transfer_playback', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ device_id: deviceId })
+                    });
+                });
+                spotifyPlayer.addListener('player_state_changed', updatePlayerUI);
+                spotifyPlayer.connect();
+            });
+        };
+
+        // --- Main Logic ---
+        window.onload = () => {
+            // Get task details from URL
+            const params = new URLSearchParams(window.location.search);
+            const taskName = params.get('name') || 'Your Task';
+            document.getElementById('taskTitle').textContent = taskName;
+            
+            startTimer();
+
+            // Player controls
+            document.getElementById('playBtn').addEventListener('click', () => spotifyPlayer && spotifyPlayer.togglePlay());
+            document.getElementById('prevBtn').addEventListener('click', () => spotifyPlayer && spotifyPlayer.previousTrack());
+            document.getElementById('nextBtn').addEventListener('click', () => spotifyPlayer && spotifyPlayer.nextTrack());
+
+            // Complete button
+            document.getElementById('completeBtn').addEventListener('click', async () => {
+                clearInterval(timerInterval);
+                const finalTimeStr = document.getElementById('timer').textContent;
+                const taskId = params.get('id');
+
+                // Save time to backend
+                if (taskId) {
+                    const [_ , ...timestampParts] = taskId.split('-');
+                    const timestamp = timestampParts.join('-');
+                    const [h, m, s] = finalTimeStr.split(':').map(Number);
+                    const timeSpent = h * 3600 + m * 60 + s;
+                    if (timeSpent > 0) {
+                        await fetch('/update_task_time', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ content: taskName, timestamp, timeSpent })
+                        });
+                    }
+                }
+
+                // Show completion UI
+                document.getElementById('mainContent').classList.add('hidden');
+                const completionDiv = document.getElementById('completionContent');
+                completionDiv.querySelector('h2').textContent = `Congrats on finishing ${finalTimeStr} of ${taskName}!`;
+                completionDiv.classList.remove('hidden');
+
+                // Fireworks
+                if (window.confetti) {
+                    confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
+                }
+
+                // Redirect home
+                setTimeout(() => { window.location.href = '/'; }, 5000);
+            });
+        };
+    </script>
+</body>
+</html> 

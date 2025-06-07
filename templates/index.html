@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Timer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.css" />
+    <style>
+        .spotify-embed {
+            width: 100%;
+            height: 80px;
+            border-radius: 12px;
+            margin-top: 1rem;
+        }
+        .time-block {
+            transition: all 0.3s ease;
+        }
+        .time-block:hover {
+            transform: scale(1.02);
+        }
+        body {
+            padding-bottom: 150px; /* 增加底部空间以适应波形动画 */
+            background-color: #000; /* 添加黑色背景 */
+        }
+        
+        /* Transparent panels */
+        .panel {
+            background-color: rgba(0, 0, 0, 0.3); /* 更透明 */
+            backdrop-filter: blur(5px);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Fixed player at bottom */
+        .fixed-player {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.05);
+            padding: 0 0 2px 0;
+            backdrop-filter: blur(5px);
+            z-index: 10;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* 顶部波纹容器 */
+        .top-wave-container {
+            height: 150px;
+            margin: 0 auto 20px;
+            width: 140%; /* 拉宽 */
+            max-width: none;
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            margin-left: -20%; /* 左右扩展更多 */
+        }
+        
+        /* 底部波纹容器 - 压缩高度，拉长宽度 */
+        .waveform-container {
+            height: 18px;
+            width: 140%;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            overflow: hidden;
+            margin-left: -20%;
+            z-index: 5;
+        }
+        
+        /* 播放器内容区域需要在波形之上 */
+        .player-content {
+            position: relative;
+            z-index: 15; /* 高于fixed-player的z-index */
+        }
+        
+        /* 自定义滚动条 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* 任务项样式 */
+        .task-item {
+            @apply bg-black bg-opacity-20 rounded-xl p-4 transition-all duration-300 border border-transparent;
+            backdrop-filter: blur(5px);
+        }
+        
+        .task-item:hover {
+            @apply bg-opacity-30 border-white border-opacity-10 transform translate-y-[-2px];
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* 时间范围按钮 */
+        .time-range-btn {
+            @apply hover:bg-black hover:bg-opacity-30;
+        }
+        
+        .time-range-btn.active {
+            @apply bg-blue-500 text-white;
+        }
+        
+        /* 任务操作按钮 */
+        .task-action-btn {
+            @apply rounded-full p-2 transition-all duration-200 bg-black bg-opacity-20;
+        }
+        
+        .task-action-btn:hover {
+            @apply bg-opacity-50 transform scale-110;
+        }
+        
+        .task-action-btn.start {
+            @apply text-blue-400 hover:text-blue-300;
+        }
+        
+        .task-action-btn.delete {
+            @apply text-red-400 hover:text-red-300;
+        }
+
+        .custom-scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+            background: transparent;
+        }
+        .custom-scrollbar-thin::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.07);
+            border-radius: 6px;
+        }
+        .custom-scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.12);
+        }
+        .custom-scrollbar-thin {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.07) transparent;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 顶部波纹动画 -->
+        <div class="top-wave-container">
+            <iframe src='https://my.spline.design/claritystream-vd4y45wO9v7cUpNUb64TeVet/' frameborder='0' width='100%' height='100%'></iframe>
+        </div>
+        
+        <div class="panel p-8 mb-8">
+            <h1 class="text-4xl font-bold text-center mb-12">Welcome to TempoLog，{{ username }}</h1>
+            
+            <!-- Rhythm Analysis -->
+            <div class="panel p-6 mb-8">
+                <div class="flex items-center cursor-pointer select-none" id="rhythmHeader">
+                    <h3 class="text-2xl font-semibold mb-0 mr-2">Today's Rhythm</h3>
+                    <button id="toggleRhythmBtn" title="Expand/Collapse" class="text-white focus:outline-none mr-3">
+                        <svg id="rhythmArrow" class="h-5 w-5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <button id="refreshRhythmBtn" title="Regenerate" class="focus:outline-none flex items-center justify-center">
+                        <img src="/static/icon/zhongxinshengcheng.png" alt="Regenerate" class="h-6 w-6" />
+                    </button>
+                </div>
+                <div id="rhythmContent" class="mt-4">
+                    <div id="rhythmSummaryText" class="text-gray-300 hidden"></div>
+                    <div id="rhythmAnalysis" class="text-gray-300">Loading rhythm analysis...</div>
+                    <div id="rhythmSongPlayer" class="mt-4 hidden">
+                        <div class="flex flex-col items-start">
+                            <div class="flex items-center mb-2">
+                                <h4 class="text-base font-semibold text-white mr-2" id="songTitle"></h4>
+                                <p class="text-gray-400 text-sm mr-2" id="songArtist"></p>
+                            </div>
+                            <div class="w-full">
+                                <iframe id="songSpotifyIframe" src="" width="100%" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Time Management Section -->
+            <div class="mb-12">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Task List -->
+                    <div class="panel p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-2xl font-semibold">Task List</h3>
+                            <div class="flex gap-1 bg-black bg-opacity-30 rounded-lg p-1">
+                                <button class="time-range-btn px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200" data-range="day">Today</button>
+                                <button class="time-range-btn px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200" data-range="week">Week</button>
+                                <button class="time-range-btn px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200" data-range="month">Month</button>
+                            </div>
+                        </div>
+                        <form id="taskForm" class="mb-6">
+                            <div class="flex gap-3">
+                                <input type="text" id="taskInput" class="flex-1 p-3 bg-black bg-opacity-20 border border-white border-opacity-10 rounded-lg text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200" placeholder="Add a new task" required>
+                                <button type="submit" class="add-btn px-5 py-3 rounded-lg transition-colors flex items-center justify-center text-white hover:bg-white hover:bg-opacity-10">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="mr-1">
+                                        <path d="M12 4V20M4 12H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    Add
+                                </button>
+                            </div>
+                        </form>
+                        <div id="taskList" class="space-y-3 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                            <!-- Tasks will be added here -->
+                        </div>
+                    </div>
+
+                    <!-- Recommended Songs -->
+                    <div class="panel p-6 mb-8">
+                        <h3 class="text-2xl font-semibold mb-6">Take a rest before next task</h3>
+                        <div id="recommendContent" class="mt-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <p class="text-gray-400">Based on your recent listening history</p>
+                                <button id="getRecommendationsBtn" class="get-recommend-btn px-4 py-2 rounded-lg transition-colors text-white hover:bg-white hover:bg-opacity-10">
+                                    Get Recommendations
+                                </button>
+                            </div>
+                            <div id="recommendationsLoading" class="hidden text-center py-4">
+                                <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                                <p class="mt-2 text-gray-400">Asking Gemini for recommendations...</p>
+                            </div>
+                            <div class="grid grid-cols-1 gap-4" id="recommendations">
+                                <!-- 推荐歌曲卡片由JS动态渲染 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 底部波形动画 - 作为单独的层 -->
+    <div class="waveform-container">
+        <iframe src='https://my.spline.design/waveform-5YuoR1DBAjs2vzmIu7TYQQAL/' frameborder='0' width='100%' height='100%'></iframe>
+    </div>
+
+    <!-- Fixed Music Player -->
+    <div class="fixed-player">
+        <div class="container mx-auto flex flex-col items-center player-content py-0">
+            <div class="flex items-center w-full justify-between gap-4">
+                <!-- 歌曲信息左侧 -->
+                <div class="flex items-center min-w-0 flex-1">
+                    <span id="globalSongTitle" class="text-base font-semibold text-white truncate mr-2"></span>
+                    <span id="globalArtistName" class="text-sm text-gray-400 truncate"></span>
+                </div>
+                <!-- 播放控制按钮居中 -->
+                <div class="flex items-center gap-4 flex-shrink-0 justify-center mx-auto">
+                    <button id="globalPrevBtn" class="bg-white bg-opacity-10 hover:bg-opacity-20 p-2 rounded-full">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 6h2v12H6zm3.5 6l8.5 6V6l-8.5 6z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                    <button id="globalPlayBtn" class="bg-green-500 hover:bg-green-600 text-white p-3 rounded-full flex items-center justify-center w-12 h-12">
+                        <svg id="globalPlayIcon" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 5v14l11-7z" fill="currentColor"/>
+                        </svg>
+                        <svg id="globalPauseIcon" class="hidden" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                    <button id="globalNextBtn" class="bg-white bg-opacity-10 hover:bg-opacity-20 p-2 rounded-full">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" fill="currentColor"/>
+                        </svg>
+                    </button>
+                </div>
+                <!-- 右侧空白 -->
+                <div class="flex-1"></div>
+            </div>
+            <!-- 进度条下方 -->
+            <div class="flex items-center w-full justify-center mt-0.5">
+                <span id="globalCurrentTime" class="text-xs text-gray-400 mr-2">0:00</span>
+                <div class="relative h-2 bg-gray-700 rounded-full flex-1">
+                    <div id="globalProgressBar" class="absolute h-full bg-green-500 rounded-full" style="width: 0%"></div>
+                </div>
+                <span id="globalTotalTime" class="text-xs text-gray-400 ml-2">0:00</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timer Modal -->
+    <div id="timerModal" class="fixed inset-0 bg-black bg-opacity-30 hidden flex items-center justify-center z-50 backdrop-blur-sm" style="overflow:auto;">
+        <div class="panel p-6 sm:p-12 w-full max-w-[480px] sm:max-w-[700px] relative flex flex-col items-center">
+            <button id="closeModal" class="absolute top-4 right-4 text-white text-2xl hover:text-gray-300 transition-colors">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <div class="flex flex-col items-center gap-6 w-full">
+                <div id="modalTaskName" class="text-3xl sm:text-5xl font-bold text-white text-center break-words"></div>
+                <div id="modalTimer" class="text-4xl sm:text-6xl font-normal text-white text-center">00:00</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 恢复 playlistDragModal 弹窗结构和相关JS逻辑到播放器调整前的正常版本 -->
+    <div id="playlistDragModal" class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center z-50" style="overflow:auto;">
+        <div class="panel p-6 sm:p-10 w-full max-w-[900px] relative flex flex-col items-center">
+            <button id="closePlaylistModal" class="absolute top-4 right-4 text-white text-2xl hover:text-gray-300 transition-colors">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <div class="w-full flex flex-col items-center">
+                <div id="playlistTaskName" class="text-2xl font-bold text-white mb-4 text-center"></div>
+                <div class="flex flex-col sm:flex-row gap-6 w-full">
+                    <!-- 推荐区 -->
+                    <div class="flex-1">
+                        <h4 class="text-lg font-semibold mb-2 text-center">Recommended Song For You</h4>
+                        <div id="recommendDragList" class="bg-black bg-opacity-10 rounded-lg p-2 min-h-[120px]"></div>
+                    </div>
+                    <!-- 歌单区 -->
+                    <div class="flex-1">
+                        <h4 class="text-lg font-semibold mb-2 text-center">Create Playlist</h4>
+                        <div id="playlistDragList" class="bg-black bg-opacity-10 rounded-lg p-2 min-h-[120px]"></div>
+                    </div>
+                </div>
+                <a href="#" id="confirmPlaylistBtn" class="mt-6 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-full w-14 h-14 transition-all">
+                    <svg id="globalPlayIconModal" width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 5v14l11-7z" fill="currentColor"/>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spotify Web Playback SDK -->
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script>
+        // --- Global State Variables ---
+        // Task Timer
+        let startTime;
+        let timerInterval;
+        let isRunning = false;
+        let currentTaskId;
+        let timerTaskContent = '';
+        let timerTaskTimestamp = '';
+        let currentTaskForTimer = {};
+        let currentPlaylistId = null;
+
+        // Spotify Player
+        let player;
+        let deviceId;
+        let isPlayerReady = false;
+        let isPlaying = false;
+        let progressInterval = null;
+
+        // Recommendations & Playlist
+        let recommendSongs = [];
+        let recommendIndex = 0;
+        let playlistSongs = [];
+        let currentTaskName = '';
+        let recommendSortable, playlistSortable;
+
+        // Time Range
+        window.currentTimeRange = 'day';
+
+        // 渲染后端传来的任务
+        function renderTasks(tasks) {
+            const taskList = document.getElementById('taskList');
+            taskList.innerHTML = '';
+            const now = new Date();
+            const todayStr = now.toISOString().slice(0,10);
+            
+            // 计算本周的开始和结束日期
+            const weekStart = new Date(now); 
+            weekStart.setDate(now.getDate() - now.getDay());
+            const weekEnd = new Date(weekStart); 
+            weekEnd.setDate(weekStart.getDate() + 6);
+            
+            // 计算本月的开始和结束日期
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            
+            // 过滤任务，根据当前选择的时间范围
+            const filteredTasks = tasks.filter(task => {
+                if (!task.timestamp) return true; // 如果没有时间戳，默认显示
+                
+                const taskDate = new Date(task.timestamp);
+                if (window.currentTimeRange === 'day') {
+                    // Today: 今天创建的任务
+                    return taskDate.toISOString().slice(0,10) === todayStr;
+                } else if (window.currentTimeRange === 'week') {
+                    // Week: 本周内创建的任务
+                    return taskDate >= weekStart && taskDate <= weekEnd;
+                } else if (window.currentTimeRange === 'month') {
+                    // Month: 本月内创建的任务
+                    return taskDate >= monthStart && taskDate <= monthEnd;
+                }
+                return true; // 默认显示所有任务
+            });
+            
+            if (filteredTasks.length === 0) {
+                taskList.innerHTML = '<div class="text-center text-gray-400 py-4">此时间范围内没有任务</div>';
+                return;
+            }
+            
+            filteredTasks.forEach((task, idx) => {
+                const taskId = idx + '-' + (task.timestamp || '');
+                // 统计用时
+                let total = 0, today = 0, week = 0, month = 0;
+                
+                if (task.times) {
+                    for (const [date, sec] of Object.entries(task.times)) {
+                        total += sec;
+                        
+                        // 计算今天的时间
+                        if (date === todayStr) {
+                            today += sec;
+                        }
+                        
+                        // 计算本周的时间
+                        const d = new Date(date);
+                        if (d >= weekStart && d <= weekEnd) {
+                            week += sec;
+                        }
+                        
+                        // 计算本月的时间
+                        if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+                            month += sec;
+                        }
+                    }
+                }
+                
+                // 根据当前选择的时间范围显示对应的时间
+                let showTime = total;
+                if (window.currentTimeRange === 'day') {
+                    showTime = today;
+                } else if (window.currentTimeRange === 'week') {
+                    showTime = week;
+                } else if (window.currentTimeRange === 'month') {
+                    showTime = month;
+                }
+                
+                const timeStr = showTime > 0 ? (Math.floor(showTime/60)+'m'+(showTime%60)+'s') : '0m0s';
+                
+                // 格式化日期时间
+                let dateDisplay = '';
+                if (task.timestamp) {
+                    const taskDate = new Date(task.timestamp);
+                    // 如果是今天，只显示时间
+                    if (taskDate.toISOString().slice(0,10) === todayStr) {
+                        dateDisplay = taskDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    } else {
+                        dateDisplay = taskDate.toLocaleDateString([], {month: 'short', day: 'numeric'}) + ' ' + 
+                                      taskDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    }
+                }
+                
+                const taskElement = document.createElement('div');
+                taskElement.className = 'task-item';
+                taskElement.dataset.taskId = taskId;
+                taskElement.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-baseline">
+                                <h4 class="font-medium text-white text-lg truncate">${task.content}</h4>
+                                <img src="/static/icon/edit.png" alt="Edit" title="Edit task name" class="w-4 h-4 ml-2 cursor-pointer edit-task-icon" data-task-id="${taskId}" />
+                                ${dateDisplay ? `<span class="text-xs text-gray-400 ml-2">${dateDisplay}</span>` : ''}
+                            </div>
+                            <div class="flex items-center mt-1">
+                                <div class="flex items-center space-x-1">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-blue-400">
+                                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+                                        <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                    <span class="text-sm text-blue-400 font-medium">${timeStr}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex space-x-2 ml-3 items-center">
+                            <button class="task-action-btn start flex items-center justify-center" onclick="startTaskTimer('${task.content}', '${taskId}')">
+                                <img src="/static/icon/bofang.png" alt="Start" class="w-6 h-6" />
+                            </button>
+                            <button class="task-action-btn delete flex items-center justify-center" onclick="deleteTaskBackend('${task.content}', '${task.timestamp}')">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M3 6H21M5 6V20C5 21.1046 5.89543 22 7 22H17C18.1046 22 19 21.1046 19 20V6M8 6V4C8 2.89543 8.89543 2 10 2H14C15.1046 2 16 2.89543 16 4V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M10 11V17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M14 11V17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                taskList.appendChild(taskElement);
+            });
+            
+            // 更新今日节奏分析
+            updateRhythmAnalysis();
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 初始化渲染任务
+            renderTasks(JSON.parse('{{ user_tasks|tojson|safe }}'));
+            
+            initSpotifyPlayer();
+            updateRhythmAnalysis(); // 页面加载时获取今日节奏分析
+            
+            // Global player controls
+            document.getElementById('globalPlayBtn').addEventListener('click', toggleGlobalPlayback);
+            document.getElementById('globalPrevBtn').addEventListener('click', playPreviousTrack);
+            document.getElementById('globalNextBtn').addEventListener('click', playNextTrack);
+            
+            // Add event listener for the get recommendations button
+            document.getElementById('getRecommendationsBtn').addEventListener('click', async () => {
+                try {
+                    document.getElementById('recommendationsLoading').classList.remove('hidden');
+                    document.getElementById('recommendations').classList.add('hidden');
+                    const response = await fetch('/gemini_recommend');
+                    const data = await response.json();
+                    document.getElementById('recommendationsLoading').classList.add('hidden');
+                    document.getElementById('recommendations').classList.remove('hidden');
+                    if (data.success && data.recommendations) {
+                        recommendSongs = data.recommendations.filter(rec => rec.spotify_id);
+                        recommendIndex = 0;
+                        renderRecommendCard();
+                    } else {
+                        recommendSongs = [];
+                        renderRecommendCard();
+                    }
+                } catch (error) {
+                    document.getElementById('recommendationsLoading').classList.add('hidden');
+                    document.getElementById('recommendations').classList.remove('hidden');
+                    recommendSongs = [];
+                    renderRecommendCard();
+                }
+            });
+        });
+
+        // Rhythm Analysis 折叠与刷新（展开时显示analysis+播放器，收起时只显示keywords）
+        document.addEventListener('DOMContentLoaded', function() {
+            const rhythmContent = document.getElementById('rhythmContent');
+            const toggleBtn = document.getElementById('toggleRhythmBtn');
+            const rhythmArrow = document.getElementById('rhythmArrow');
+            const rhythmSummaryText = document.getElementById('rhythmSummaryText');
+            const rhythmAnalysis = document.getElementById('rhythmAnalysis');
+            const rhythmSongPlayer = document.getElementById('rhythmSongPlayer');
+            let rhythmCollapsed = false;
+            function setCollapsed(collapsed) {
+                rhythmCollapsed = collapsed;
+                if (collapsed) {
+                    rhythmSummaryText.classList.remove('hidden');
+                    rhythmAnalysis.classList.add('hidden');
+                    rhythmSongPlayer.classList.add('hidden');
+                    rhythmArrow.style.transform = 'rotate(-90deg)';
+                } else {
+                    rhythmSummaryText.classList.add('hidden');
+                    rhythmAnalysis.classList.remove('hidden');
+                    rhythmSongPlayer.classList.remove('hidden');
+                    rhythmArrow.style.transform = 'rotate(0deg)';
+                }
+            }
+            document.getElementById('rhythmHeader').addEventListener('click', function(e) {
+                if (e.target.closest('#refreshRhythmBtn')) return;
+                setCollapsed(!rhythmCollapsed);
+            });
+            document.getElementById('refreshRhythmBtn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                updateRhythmAnalysis();
+            });
+            // 初始默认展开
+            setCollapsed(false);
+        });
+
+        // 获取今日节奏分析（支持keywords+歌曲播放器）
+        async function updateRhythmAnalysis() {
+            try {
+                document.getElementById('rhythmAnalysis').textContent = 'Loading...';
+                document.getElementById('rhythmSummaryText').textContent = '';
+                document.getElementById('songTitle').textContent = '';
+                document.getElementById('songArtist').textContent = '';
+                document.getElementById('songSpotifyIframe').src = '';
+                const response = await fetch('/get_todays_rhythm');
+                const data = await response.json();
+                if (data.error) {
+                    document.getElementById('rhythmAnalysis').textContent = 'Failed to get today\'s analysis: ' + data.error;
+                    document.getElementById('rhythmSummaryText').textContent = 'Failed to get today\'s summary.';
+                    return;
+                }
+                // poetic phrase summary
+                let phrase = data.keywordsPhrase || '';
+                if (!phrase && data.analysis) {
+                    // 自动提取3-5个有代表性的单词，拼成诗意短语
+                    let words = data.analysis.match(/\b([A-Za-z]{4,})\b/g) || [];
+                    words = Array.from(new Set(words.map(w => w.toLowerCase()))).slice(0, 5);
+                    if (words.length) {
+                        phrase = words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(', ') + '.';
+                    }
+                }
+                document.getElementById('rhythmSummaryText').textContent = phrase;
+                document.getElementById('rhythmAnalysis').textContent = data.analysis || 'No analysis for today.';
+                // 歌曲播放器（无介绍）
+                if (data.song && data.song.title && data.song.artist) {
+                    document.getElementById('songTitle').textContent = data.song.title;
+                    document.getElementById('songArtist').textContent = data.song.artist;
+                    if (data.song.spotify_id) {
+                        document.getElementById('songSpotifyIframe').src = `https://open.spotify.com/embed/track/${data.song.spotify_id}`;
+                    } else {
+                        document.getElementById('songSpotifyIframe').src = '';
+                    }
+                } else {
+                    document.getElementById('songTitle').textContent = '';
+                    document.getElementById('songArtist').textContent = '';
+                    document.getElementById('songSpotifyIframe').src = '';
+                }
+            } catch (error) {
+                console.error('Error fetching rhythm analysis:', error);
+                document.getElementById('rhythmAnalysis').textContent = 'Failed to get today\'s analysis.';
+                document.getElementById('rhythmSummaryText').textContent = 'Failed to get today\'s summary.';
+            }
+        }
+        
+        // 新增任务时同步后端
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const taskInput = document.getElementById('taskInput');
+            const taskText = taskInput.value.trim();
+            if (taskText) {
+                const res = await fetch('/add_task', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task: taskText })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    renderTasks(data.tasks);
+                taskInput.value = '';
+                }
+            }
+        });
+
+        // 删除任务
+        async function deleteTaskBackend(content, timestamp) {
+            if (!confirm('确定要删除该任务吗？')) return;
+            const res = await fetch('/del_task', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content, timestamp })
+            });
+            const data = await res.json();
+            if (data.success) {
+                renderTasks(data.tasks);
+            }
+        }
+
+        window.startTaskTimer = async function(taskName, taskId) {
+            currentTaskName = taskName;
+            
+            // Update the link's href to point to the new task page, passing both name and id
+            const confirmBtn = document.getElementById('confirmPlaylistBtn');
+            if(confirmBtn) {
+                confirmBtn.href = `/task?name=${encodeURIComponent(taskName)}&id=${encodeURIComponent(taskId)}`;
+            }
+
+            const modal = document.getElementById('playlistDragModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            // Set task name in modal
+            const taskNameDom = document.getElementById('playlistTaskName');
+            if (taskNameDom) taskNameDom.textContent = `Create your playlist for ${taskName}`;
+            
+            // Add loading state before fetching recommendations
+            const recommendList = document.getElementById('recommendDragList');
+            if (recommendList) {
+                recommendList.innerHTML = `<div class='text-center text-gray-400 py-8'>Loading recommendations...</div>`;
+            }
+            const playlistList = document.getElementById('playlistDragList');
+            if(playlistList) {
+                playlistList.innerHTML = ''; // Clear previous playlist
+            }
+
+            // Get recommendations
+            const prompt = `为用户正在进行的任务\\\"${taskName}\\\"推荐15首最适合的歌曲。\\n请考虑这个任务需要什么样的氛围和节奏：是需要专注、放松、精力充沛还是创意？根据任务的性质，推荐15首最适合的歌曲。\\n请严格使用以下JSON格式回复：\\n[\\n  {\\n    \\\"title\\\": \\\"歌曲名称1\\\",\\n    \\\"artist\\\": \\\"歌手名称1\\\",\\n    \"duration_sec\\": 187,\\n    \\\"reason\\\": \\\"推荐理由（1-2句话）\\\"\\n  },\\n  ...\\n]\\n请确保每首歌都包含准确的歌曲时长（duration_sec，单位为秒，必须为真实时长），这样我们才能统计总时长。不要返回任何无关内容。每次推荐都要和上一次不同，且与任务名密切相关。`;
+            try {
+                const res = await fetch('/task_recommendations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task: taskName, prompt: prompt })
+                });
+                const data = await res.json();
+                if (!data.recommendations || !data.recommendations.length) {
+                    // 显示友好错误提示
+                    const list = document.getElementById('recommendDragList');
+                    if (list) list.innerHTML = `<div class='text-center text-red-400 py-8'>AI推荐失败，请稍后重试或检查Spotify连接。</div>`;
+                    return;
+                }
+                recommendedSongs = data.recommendations.map(song => ({
+                    ...song,
+                    duration_ms: song.duration_ms || (song.duration_sec ? song.duration_sec * 1000 : 180000)
+                }));
+                playlistSongs = [];
+                renderRecommendList();
+                renderPlaylist();
+                initDragDrop();
+            } catch (e) {
+                const list = document.getElementById('recommendDragList');
+                if (list) list.innerHTML = `<div class='text-center text-red-400 py-8'>AI推荐失败，请稍后重试或检查Spotify连接。</div>`;
+            }
+        }
+        
+        async function getTaskRecommendations(taskName) {
+            try {
+                // 显示加载中
+                document.getElementById('player-status').textContent = '为此任务获取音乐推荐中...';
+                
+                // 调用API获取推荐
+                const response = await fetch('/task_recommendations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ task: taskName })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    document.getElementById('player-status').textContent = '无法获取推荐: ' + data.error;
+                    return;
+                }
+                
+                if (data.success) {
+                    // 保存播放列表ID
+                    currentPlaylistId = data.playlist_id;
+                    
+                    // 显示播放列表信息
+                    document.getElementById('playlistInfo').classList.remove('hidden');
+                    document.getElementById('playlistName').textContent = data.playlist_name;
+                    
+                    // 显示推荐歌曲列表
+                    if (data.recommendations && data.recommendations.length > 0) {
+                        document.getElementById('recommendedTracks').classList.remove('hidden');
+                        
+                        // 渲染歌曲列表
+                        const tracksList = document.getElementById('tracksList');
+                        tracksList.innerHTML = '';
+                        
+                        data.recommendations.forEach(track => {
+                            if (!track.title || !track.artist || !track.spotify_id) return;
+                            
+                            const trackElement = document.createElement('div');
+                            trackElement.className = 'bg-white bg-opacity-5 p-4 rounded-lg';
+                            
+                            trackElement.innerHTML = `
+                                <div class="flex flex-col">
+                                    <div>
+                                        <h4 class="text-white font-medium">${track.title}</h4>
+                                        <p class="text-gray-400 text-sm">${track.artist}</p>
+                                        ${track.reason ? `<p class="text-sm text-gray-500 mt-2">${track.reason}</p>` : ''}
+                                    </div>
+                                    <div class="mt-3">
+                                        <iframe src="https://open.spotify.com/embed/track/${track.spotify_id}" width="100%" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            tracksList.appendChild(trackElement);
+                        });
+                        
+                        // 播放第一首歌曲
+                        if (data.recommendations[0] && data.recommendations[0].spotify_id && isPlayerReady) {
+                            const spotifyUri = `spotify:track:${data.recommendations[0].spotify_id}`;
+                            fetch('/transfer_playback', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ device_id: deviceId })
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    player.play({
+                                        uris: [spotifyUri]
+                                    });
+                                    document.querySelector('.play-btn').textContent = 'Pause';
+                                    startProgressUpdate();
+                                    vinyl.style.animationPlayState = 'running';
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error starting playback:', error);
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error getting task recommendations:', error);
+                document.getElementById('player-status').textContent = '获取推荐时出错';
+            }
+        }
+        
+        // 删除当前播放的歌曲并播放下一首
+        document.querySelector('.remove-from-playlist-btn')?.addEventListener('click', async function() {
+            if (!currentPlaylistId || !this.dataset.uri) return;
+            
+            try {
+                const response = await fetch('/remove_from_playlist', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        playlist_id: currentPlaylistId,
+                        track_uri: this.dataset.uri
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // 播放下一首
+                    player.nextTrack();
+                }
+            } catch (error) {
+                console.error('Error removing track from playlist:', error);
+            }
+        });
+
+        function updatePlayerStatus(message) {
+            const statusElement = document.getElementById('player-status');
+            if (statusElement) {
+                statusElement.textContent = message;
+            }
+        }
+
+        function formatTime(ms) {
+            const minutes = Math.floor(ms / 60000);
+            const seconds = Math.floor((ms % 60000) / 1000);
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function updateProgress(state) {
+            const progressBar = document.getElementById('progress-bar');
+            const currentTime = document.getElementById('current-time');
+            const totalTime = document.getElementById('total-time');
+            
+            if (state) {
+                const progress = (state.position / state.duration) * 100;
+                progressBar.style.width = `${progress}%`;
+                currentTime.textContent = formatTime(state.position);
+                totalTime.textContent = formatTime(state.duration);
+            }
+        }
+
+        function startProgressUpdate() {
+            if (progressInterval) clearInterval(progressInterval);
+            progressInterval = setInterval(async () => {
+                if (window.player && typeof window.player.getCurrentState === 'function') {
+                    const state = await window.player.getCurrentState();
+                    if (state) updateGlobalPlayerInfo(state);
+                }
+            }, 1000);
+        }
+
+        function stopProgressUpdate() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+        }
+
+        // 初始化播放器
+        function initSpotifyPlayer() {
+            updatePlayerStatus('Loading Spotify SDK...');
+            // 注意：不自动播放音乐
+        }
+
+        window.onSpotifyWebPlaybackSDKReady = () => {
+            updatePlayerStatus('Initializing player...');
+            fetch('/get_token')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.access_token) {
+                        const token = data.access_token;
+                        player = new Spotify.Player({
+                            name: 'TempoLog Player',
+                            getOAuthToken: cb => { cb(token); },
+                            volume: 0.5
+                        });
+
+                        // Ready
+                        player.addListener('ready', ({ device_id }) => {
+                            deviceId = device_id;
+                            isPlayerReady = true;
+                            updatePlayerStatus('Player ready!');
+                            document.querySelector('.fixed-player').classList.remove('opacity-50');
+                            // 关键：转移播放权到此设备
+                            fetch('/transfer_playback', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ device_id: deviceId })
+                            }).then(() => {
+                                updatePlayerStatus('Playback transferred to web player.');
+                            }).catch(() => {
+                                updatePlayerStatus('Failed to transfer playback.');
+                            });
+                        });
+
+                        // Not Ready
+                        player.addListener('not_ready', () => {
+                            isPlayerReady = false;
+                            updatePlayerStatus('Player not ready');
+                            document.querySelector('.fixed-player').classList.add('opacity-50');
+                        });
+
+                        // Error handling
+                        player.addListener('initialization_error', ({ message }) => {
+                            console.error('Failed to initialize:', message);
+                            updatePlayerStatus('Error: Failed to initialize player');
+                        });
+                        player.addListener('authentication_error', ({ message }) => {
+                            console.error('Failed to authenticate:', message);
+                            updatePlayerStatus('Error: Failed to authenticate');
+                        });
+                        player.addListener('account_error', ({ message }) => {
+                            console.error('Failed to validate Spotify account:', message);
+                            updatePlayerStatus('Error: Failed to validate Spotify account');
+                        });
+                        player.addListener('playback_error', ({ message }) => {
+                            console.error('Failed to perform playback:', message);
+                            updatePlayerStatus('Error: Failed to perform playback');
+                        });
+
+                        // Playback status updates
+                        player.addListener('player_state_changed', state => {
+                            if (state) {
+                                isPlaying = !state.paused;
+                                updateGlobalPlayerInfo(state);
+                                if (isPlaying) {
+                                    startProgressUpdate();
+                                } else {
+                                    stopProgressUpdate();
+                                }
+                            }
+                        });
+
+                        // Connect to the player
+                        player.connect().then(success => {
+                            if (!success) {
+                                updatePlayerStatus('Failed to connect Spotify player.');
+                            }
+                        });
+                    } else {
+                        updatePlayerStatus('Error: Failed to get access token');
+                        console.error('Failed to get access token:', data.error);
+                    }
+                })
+                .catch(error => {
+                    updatePlayerStatus('Error: Failed to get access token');
+                    console.error('Error getting access token:', error);
+                });
+        };
+
+        // 播放控制
+        // 只允许在播放器ready且有deviceId时操作
+        function safePlayAction(action) {
+            if (!isPlayerReady || !deviceId) {
+                updatePlayerStatus('Spotify player is not ready yet. Please try again in a moment.');
+                return;
+            }
+            action();
+        }
+        document.querySelector('.play-btn')?.addEventListener('click', () => {
+            safePlayAction(() => {
+                if (isPlaying) {
+                    player.pause();
+                    document.querySelector('.play-btn').textContent = 'Play';
+                    stopProgressUpdate();
+                } else {
+                    player.resume();
+                    document.querySelector('.play-btn').textContent = 'Pause';
+                    startProgressUpdate();
+                }
+            });
+        });
+        document.querySelector('.prev-btn')?.addEventListener('click', () => {
+            safePlayAction(() => player.previousTrack());
+        });
+        document.querySelector('.next-btn')?.addEventListener('click', () => {
+            safePlayAction(() => player.nextTrack());
+        });
+        // 全局播放器按钮
+        const globalPlayBtn = document.getElementById('globalPlayBtn');
+        if (globalPlayBtn) {
+            globalPlayBtn.addEventListener('click', () => {
+                if (window.player && typeof window.player.togglePlay === 'function') {
+                    window.player.togglePlay();
+                }
+            });
+        }
+        const globalPrevBtn = document.getElementById('globalPrevBtn');
+        if (globalPrevBtn) {
+            globalPrevBtn.addEventListener('click', () => safePlayAction(() => player.previousTrack()));
+        }
+        const globalNextBtn = document.getElementById('globalNextBtn');
+        if (globalNextBtn) {
+            globalNextBtn.addEventListener('click', () => safePlayAction(() => player.nextTrack()));
+        }
+
+        // 切换全局播放/暂停
+        function toggleGlobalPlayback() {
+            if (!isPlayerReady) {
+                alert('Spotify player is not ready yet. Please try again in a moment.');
+                return;
+            }
+            
+            if (isPlaying) {
+                player.pause();
+                document.getElementById('globalPlayIcon').classList.remove('hidden');
+                document.getElementById('globalPauseIcon').classList.add('hidden');
+                vinyl.style.animationPlayState = 'paused';
+            } else {
+                player.resume();
+                document.getElementById('globalPlayIcon').classList.add('hidden');
+                document.getElementById('globalPauseIcon').classList.remove('hidden');
+                vinyl.style.animationPlayState = 'running';
+            }
+            
+            isPlaying = !isPlaying;
+        }
+        
+        // 播放上一首
+        function playPreviousTrack() {
+            if (!isPlayerReady) return;
+            player.previousTrack();
+        }
+        
+        // 播放下一首
+        function playNextTrack() {
+            if (!isPlayerReady) return;
+            player.nextTrack();
+        }
+        
+        // 更新全局播放器的进度条
+        function updateGlobalProgress(state) {
+            if (!state) return;
+            
+            const progress = (state.position / state.duration) * 100;
+            document.getElementById('globalProgressBar').style.width = `${progress}%`;
+            document.getElementById('globalCurrentTime').textContent = formatTime(state.position);
+            document.getElementById('globalTotalTime').textContent = formatTime(state.duration);
+            
+            // 更新全局播放器信息
+            if (state.track_window && state.track_window.current_track) {
+                const track = state.track_window.current_track;
+                document.getElementById('globalSongTitle').textContent = track.name;
+                document.getElementById('globalArtistName').textContent = track.artists[0].name;
+            }
+            
+            // 更新播放/暂停图标
+            if (state.paused) {
+                document.getElementById('globalPlayIcon').classList.remove('hidden');
+                document.getElementById('globalPauseIcon').classList.add('hidden');
+            } else {
+                document.getElementById('globalPlayIcon').classList.add('hidden');
+                document.getElementById('globalPauseIcon').classList.remove('hidden');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.time-range-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    document.querySelectorAll('.time-range-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    button.classList.add('active');
+                    window.currentTimeRange = button.dataset.range;
+                    renderTasks(JSON.parse('{{ user_tasks|tojson|safe }}'));
+                });
+            });
+            
+            // 默认激活今天按钮
+            document.querySelector('.time-range-btn[data-range="day"]').classList.add('active');
+        });
+
+        // 黑胶动画
+        const vinyl = document.getElementById('vinyl');
+        vinyl.animate([
+            { transform: 'rotate(0deg)' },
+            { transform: 'rotate(360deg)' }
+        ], {
+            duration: 3000,
+            iterations: Infinity
+        });
+        vinyl.style.animationPlayState = 'paused';
+
+        function startTimer() {
+            if (!isRunning) {
+                startTime = Date.now();
+                isRunning = true;
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
+        function stopTimer() {
+            if (isRunning) {
+                clearInterval(timerInterval);
+                isRunning = false;
+                const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+                if (timerTaskContent && timerTaskTimestamp) {
+                    saveTaskTimeToFirebase(timerTaskContent, timerTaskTimestamp, timeSpent);
+                }
+            }
+        }
+
+        async function saveTaskTimeToFirebase(content, timestamp, timeSpent) {
+            try {
+                const response = await fetch('/update_task_time', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: content, 
+                        timestamp: timestamp, 
+                        timeSpent: timeSpent 
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    console.log('Time tracked successfully:', timeSpent, 'seconds');
+                    // Re-render tasks with updated times
+                    renderTasks(data.tasks);
+                } else {
+                    console.error('Failed to track time:', data.error);
+                }
+            } catch (error) {
+                console.error('Error tracking time:', error);
+            }
+        }
+
+        function updateTimer() {
+            const timerElement = document.getElementById('modalTimer');
+            const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+            const minutes = Math.floor(elapsedTime / 60);
+            const seconds = elapsedTime % 60;
+            timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Close modal when clicking outside or close button
+        document.getElementById('timerModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                stopTimer();
+                e.currentTarget.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('closeModal').addEventListener('click', () => {
+            stopTimer();
+            document.getElementById('timerModal').classList.add('hidden');
+        });
+
+        // 结束任务按钮
+        document.getElementById('endTaskBtn').addEventListener('click', async () => {
+            stopTimer();
+            document.getElementById('timerModal').classList.add('hidden');
+        });
+
+        // Task List 编辑任务名功能
+        document.addEventListener('DOMContentLoaded', function() {
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('edit-task-icon')) {
+                    const taskId = e.target.getAttribute('data-task-id');
+                    const taskItem = e.target.closest('.task-item');
+                    const h4 = taskItem.querySelector('h4');
+                    const oldName = h4.textContent;
+                    // 创建input
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = oldName;
+                    input.className = 'bg-black bg-opacity-30 text-white rounded px-2 py-1 text-lg outline-none border border-blue-400';
+                    input.style.width = (h4.offsetWidth + 40) + 'px';
+                    h4.replaceWith(input);
+                    input.focus();
+                    // 保存逻辑
+                    function saveEdit() {
+                        const newName = input.value.trim();
+                        if (newName && newName !== oldName) {
+                            saveTaskName(taskId, newName, input);
+                        } else {
+                            input.replaceWith(h4);
+                        }
+                    }
+                    input.addEventListener('blur', saveEdit);
+                    input.addEventListener('keydown', function(ev) {
+                        if (ev.key === 'Enter') {
+                            input.blur();
+                        } else if (ev.key === 'Escape') {
+                            input.replaceWith(h4);
+                        }
+                    });
+                }
+            });
+        });
+        // 保存任务名（预留，实际保存逻辑可后端实现）
+        function saveTaskName(taskId, newName, input) {
+            // TODO: 调用后端API保存任务名，成功后刷新任务列表
+            // 这里先直接还原显示
+            const h4 = document.createElement('h4');
+            h4.className = 'font-medium text-white text-lg truncate';
+            h4.textContent = newName;
+            input.replaceWith(h4);
+        }
+
+        // Recommended Songs 折叠与刷新
+        document.addEventListener('DOMContentLoaded', function() {
+            const recommendContent = document.getElementById('recommendContent');
+            const toggleRecommendBtn = document.getElementById('toggleRecommendBtn');
+            const recommendArrow = document.getElementById('recommendArrow');
+            let recommendCollapsed = false;
+            function setRecommendCollapsed(collapsed) {
+                recommendCollapsed = collapsed;
+                if (collapsed) {
+                    recommendContent.classList.add('hidden');
+                    recommendArrow.style.transform = 'rotate(-90deg)';
+                } else {
+                    recommendContent.classList.remove('hidden');
+                    recommendArrow.style.transform = 'rotate(0deg)';
+                }
+            }
+            document.getElementById('recommendHeader').addEventListener('click', function(e) {
+                if (e.target.closest('#refreshRecommendBtn')) return;
+                setRecommendCollapsed(!recommendCollapsed);
+            });
+            document.getElementById('refreshRecommendBtn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                document.getElementById('getRecommendationsBtn').click();
+            });
+            // 初始默认展开
+            setRecommendCollapsed(false);
+        });
+
+        // 推荐歌曲卡片切换功能
+        function renderRecommendCard() {
+            const container = document.getElementById('recommendations');
+            if (!recommendSongs.length) {
+                container.innerHTML = `<div class='text-center text-gray-400'>No tracks available on Spotify. Please try again.</div>`;
+                return;
+            }
+            const rec = recommendSongs[recommendIndex];
+            container.innerHTML = `
+                <div class="bg-white bg-opacity-5 p-4 rounded-lg hover:bg-opacity-10 transition-colors flex items-center">
+                    <div class="flex-1 flex flex-col">
+                        <h3 class="font-semibold">${rec.song}</h3>
+                        <p class="text-gray-400">${rec.artist}</p>
+                        <p class="text-sm text-gray-500 mt-2">${rec.explanation || ''}</p>
+                        <div class="mt-3">
+                            <iframe src="https://open.spotify.com/embed/track/${rec.spotify_id}" width="100%" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>
+                        </div>
+                    </div>
+                    ${recommendSongs.length > 1 ? `<button id='nextRecBtn' class='ml-2 hover:text-blue-500 transition-colors' title='Next'>
+                        <svg width='24' height='24' fill='none' stroke='currentColor' stroke-width='2' viewBox='0 0 24 24'><path d='M9 5l7 7-7 7'/></svg>
+                    </button>` : ''}
+                </div>
+            `;
+            if (recommendSongs.length > 1) {
+                document.getElementById('nextRecBtn').onclick = function(e) {
+                    e.stopPropagation();
+                    recommendIndex = (recommendIndex + 1) % recommendSongs.length;
+                    renderRecommendCard();
+                };
+            }
+        }
+
+        // --- 恢复底部播放器全局状态同步 ---
+        // 监听Spotify Web Playback SDK的player_state_changed事件，更新底部播放器信息
+        function updateGlobalPlayerInfo(state) {
+            if (!state || !state.track_window || !state.track_window.current_track) return;
+            const track = state.track_window.current_track;
+            document.getElementById('globalSongTitle').textContent = track.name;
+            document.getElementById('globalArtistName').textContent = track.artists.map(a => a.name).join(', ');
+            // 进度条
+            const progress = (state.position / state.duration) * 100;
+            document.getElementById('globalProgressBar').style.width = `${progress}%`;
+            document.getElementById('globalCurrentTime').textContent = formatTime(state.position);
+            document.getElementById('globalTotalTime').textContent = formatTime(state.duration);
+            // 播放/暂停按钮
+            if (state.paused) {
+                document.getElementById('globalPlayIcon').classList.remove('hidden');
+                document.getElementById('globalPauseIcon').classList.add('hidden');
+            } else {
+                document.getElementById('globalPlayIcon').classList.add('hidden');
+                document.getElementById('globalPauseIcon').classList.remove('hidden');
+            }
+        }
+
+        // 歌单拖拽区块
+        function msToTime(ms) {
+            if (isNaN(ms)) return '0:00';
+            let s = Math.floor(ms / 1000);
+            let m = Math.floor(s / 60);
+            let h = Math.floor(m / 60);
+            s = s % 60;
+            m = m % 60;
+            return (h > 0 ? h + ':' : '') + m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
+        }
+        function renderRecommendList() {
+            const list = document.getElementById('recommendDragList');
+            if (!list) return;
+            list.innerHTML = '';
+            list.classList.add('overflow-y-auto', 'max-h-96', 'custom-scrollbar-thin');
+            if (!recommendedSongs.length) {
+                list.innerHTML = `<div class='text-center text-gray-400'>No recommendations found.</div>`;
+                return;
+            }
+            recommendedSongs.forEach((song) => {
+                if (!song.spotify_id || playlistSongs.some(s => s.spotify_id === song.spotify_id)) return;
+                const row = document.createElement('div');
+                row.className = 'flex items-center w-full mb-2';
+                // 播放器
+                const card = document.createElement('div');
+                card.className = 'bg-white bg-opacity-5 p-1 rounded-lg flex-1 flex flex-col items-center';
+                card.innerHTML = song.spotify_id ? `<iframe src='https://open.spotify.com/embed/track/${song.spotify_id}' width='100%' height='80' frameborder='0' allowtransparency='true' allow='encrypted-media'></iframe>` : '';
+                // 小球
+                const ball = document.createElement('div');
+                ball.className = 'ml-3 w-7 h-7 rounded-full bg-gradient-to-br from-green-400 to-blue-500 shadow-lg flex items-center justify-center cursor-grab drag-ball';
+                ball.setAttribute('draggable', 'true');
+                ball.setAttribute('data-spotifyid', song.spotify_id);
+                ball.setAttribute('data-title', song.title || song.song);
+                ball.setAttribute('data-artist', song.artist);
+                ball.innerHTML = `<svg width='16' height='16' fill='white' viewBox='0 0 24 24'><circle cx='12' cy='12' r='7'/></svg>`;
+                // 拖动事件绑定
+                ball.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('spotify_id', song.spotify_id);
+                });
+                row.appendChild(card);
+                row.appendChild(ball);
+                list.appendChild(row);
+            });
+            // 右侧歌单区允许拖入
+            const playlistList = document.getElementById('playlistDragList');
+            if (playlistList) {
+                playlistList.ondragover = function(e) { e.preventDefault(); };
+                playlistList.ondrop = function(e) {
+                    e.preventDefault();
+                    const spotify_id = e.dataTransfer.getData('spotify_id');
+                    const song = recommendedSongs.find(s => s.spotify_id === spotify_id);
+                    if (song && !playlistSongs.some(s => s.spotify_id === song.spotify_id)) {
+                        playlistSongs.push(song);
+                        renderPlaylist();
+                        renderRecommendList();
+                    }
+                };
+            }
+        }
+        function renderPlaylist() {
+            const list = document.getElementById('playlistDragList');
+            if (!list) return;
+            list.innerHTML = '';
+            playlistSongs.forEach((song, idx) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white bg-opacity-10 p-2 rounded-lg flex items-center justify-between w-full mb-2';
+                card.setAttribute('data-idx', idx);
+                card.innerHTML = `
+                    <div class='flex-1 flex items-center'>
+                        <span class='font-semibold text-white'>${song.title || song.song}</span>
+                        <span class='text-gray-400 text-sm ml-2'>${song.artist}</span>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+        function initDragDrop() {
+            const recommendList = document.getElementById('recommendDragList');
+            const playlistList = document.getElementById('playlistDragList');
+            if (!window.Sortable || !recommendList || !playlistList) return;
+            if (!recommendSortable) {
+                recommendSortable = new Sortable(recommendList, {
+                    group: { name: 'songs', pull: 'clone', put: false },
+                    sort: false,
+                    animation: 150
+                });
+            }
+            if (!playlistSortable) {
+                playlistSortable = new Sortable(playlistList, {
+                    group: { name: 'songs', pull: true, put: true },
+                    animation: 150,
+                    onAdd: function (evt) {
+                        const idx = +evt.item.getAttribute('data-idx');
+                        const song = recommendedSongs[idx];
+                        if (!playlistSongs.find(s => s.spotify_id === song.spotify_id)) {
+                            playlistSongs.push(song);
+                            renderPlaylist();
+                        }
+                        evt.item.parentNode && evt.item.parentNode.removeChild(evt.item);
+                    },
+                    onEnd: function (evt) {
+                        const newOrder = [];
+                        document.querySelectorAll('#playlistDragList > div').forEach(card => {
+                            const idx = +card.getAttribute('data-idx');
+                            newOrder.push(playlistSongs[idx]);
+                        });
+                        playlistSongs = newOrder;
+                        renderPlaylist();
+                    }
+                });
+            }
+        }
+        
+        // --- Consolidated DOMContentLoaded Listener ---
+        window.addEventListener('DOMContentLoaded', function() {
+
+            // The 'Start Task' button is now a link, its href is set dynamically in startTaskTimer.
+            // No extra JS logic is needed here for its click event.
+
+            // Playlist modal close button
+            const closeBtn = document.getElementById('closePlaylistModal');
+            const modal = document.getElementById('playlistDragModal');
+            if (closeBtn && modal) {
+                closeBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    modal.classList.add('hidden');
+                });
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) modal.classList.add('hidden');
+                });
+            }
+            
+            // Ensure bottom player is always usable
+            const fixedPlayer = document.querySelector('.fixed-player');
+            if(fixedPlayer) {
+                fixedPlayer.classList.remove('opacity-50');
+                fixedPlayer.style.pointerEvents = 'auto';
+            }
+        });
+
+        // Keep progress bar updated every second
+        setInterval(async () => {
+            if (window.player && typeof window.player.getCurrentState === 'function') {
+                const state = await window.player.getCurrentState();
+                if (state) updateGlobalPlayerInfo(state);
+            }
+        }, 1000);
+    </script>
+</body>
+</html> 

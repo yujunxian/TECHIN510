@@ -1,0 +1,123 @@
+/* Global Styles */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Card Styles */
+.card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+/* Time Management Section */
+.time-management {
+    margin-bottom: 32px;
+}
+
+.timer-display {
+    font-size: 3rem;
+    font-weight: bold;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.timer-controls {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+/* Task List Styles */
+.task-list {
+    margin-top: 20px;
+}
+
+.task-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.task-item.completed {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+/* Music Section Styles */
+.music-section {
+    margin-top: 32px;
+}
+
+.recommendation-card {
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    transition: transform 0.2s;
+}
+
+.recommendation-card:hover {
+    transform: translateY(-2px);
+}
+
+/* Button Styles */
+.btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+}
+
+.btn-primary:hover {
+    background-color: #45a049;
+}
+
+.btn-secondary {
+    background-color: #f44336;
+    color: white;
+    border: none;
+}
+
+.btn-secondary:hover {
+    background-color: #da190b;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .timer-display {
+        font-size: 2rem;
+    }
+    
+    .timer-controls {
+        flex-direction: column;
+        align-items: center;
+    }
+} 

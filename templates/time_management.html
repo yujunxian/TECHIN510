@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .time-block {
+            transition: all 0.3s ease;
+        }
+        .time-block:hover {
+            transform: scale(1.02);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h1 class="text-3xl font-bold text-center mb-8">Time Management</h1>
+            
+            <!-- Time Schedule -->
+            <div class="mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Daily Schedule</h2>
+                <div class="grid grid-cols-1 gap-4" id="timeSchedule">
+                    <!-- Time blocks will be added here -->
+                </div>
+            </div>
+
+            <!-- Add Time Block Form -->
+            <div class="mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Add Time Block</h2>
+                <form id="addTimeBlockForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                        <input type="time" id="startTime" class="w-full p-2 border rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                        <input type="time" id="endTime" class="w-full p-2 border rounded-lg" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Activity</label>
+                        <input type="text" id="activity" class="w-full p-2 border rounded-lg" placeholder="Enter activity" required>
+                    </div>
+                    <div class="md:col-span-3">
+                        <button type="submit" class="w-full bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+                            Add Time Block
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Music Recommendations -->
+            <div class="mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Music Recommendations</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="musicRecommendations">
+                    <!-- Music recommendations will be added here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load time blocks from localStorage
+        function loadTimeBlocks() {
+            const timeBlocks = JSON.parse(localStorage.getItem('timeBlocks') || '[]');
+            const timeSchedule = document.getElementById('timeSchedule');
+            timeSchedule.innerHTML = '';
+
+            timeBlocks.forEach(block => {
+                const timeBlock = document.createElement('div');
+                timeBlock.className = 'time-block bg-white p-4 rounded-lg shadow';
+                timeBlock.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="font-semibold">${block.activity}</h3>
+                            <p class="text-gray-600">${block.startTime} - ${block.endTime}</p>
+                        </div>
+                        <button class="text-red-500 hover:text-red-600" onclick="deleteTimeBlock('${block.id}')">
+                            Delete
+                        </button>
+                    </div>
+                `;
+                timeSchedule.appendChild(timeBlock);
+            });
+        }
+
+        // Add new time block
+        document.getElementById('addTimeBlockForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+            const activity = document.getElementById('activity').value;
+
+            const timeBlocks = JSON.parse(localStorage.getItem('timeBlocks') || '[]');
+            timeBlocks.push({
+                id: Date.now().toString(),
+                startTime,
+                endTime,
+                activity
+            });
+
+            localStorage.setItem('timeBlocks', JSON.stringify(timeBlocks));
+            loadTimeBlocks();
+            
+            // Clear form
+            e.target.reset();
+        });
+
+        // Delete time block
+        function deleteTimeBlock(id) {
+            const timeBlocks = JSON.parse(localStorage.getItem('timeBlocks') || '[]');
+            const updatedBlocks = timeBlocks.filter(block => block.id !== id);
+            localStorage.setItem('timeBlocks', JSON.stringify(updatedBlocks));
+            loadTimeBlocks();
+        }
+
+        // Load time blocks on page load
+        loadTimeBlocks();
+
+        // Load music recommendations
+        async function loadMusicRecommendations() {
+            try {
+                const response = await fetch('/auto_recommend');
+                const data = await response.json();
+                
+                if (data.recommendations) {
+                    const recommendationsContainer = document.getElementById('musicRecommendations');
+                    recommendationsContainer.innerHTML = data.recommendations.map(rec => `
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <h3 class="font-semibold">${rec.song}</h3>
+                            <p class="text-gray-600">${rec.artist}</p>
+                            <p class="text-sm text-gray-500 mt-2">${rec.explanation}</p>
+                            ${rec.spotify_id ? `
+                                <iframe class="w-full h-20 mt-2 rounded-lg" 
+                                    src="https://open.spotify.com/embed/track/${rec.spotify_id}"
+                                    frameborder="0" 
+                                    allowtransparency="true" 
+                                    allow="encrypted-media">
+                                </iframe>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading music recommendations:', error);
+            }
+        }
+
+        // Load music recommendations on page load
+        loadMusicRecommendations();
+    </script>
+</body>
+</html> 
